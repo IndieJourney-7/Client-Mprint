@@ -35,6 +35,7 @@ import Cart from "./Components/Cart";
 import SearchResults from "./Components/SearchResults";
 import FavoritesPage from "./Components/FavoritesPage";
 import AuthDebug from "./Components/AuthDebug";
+import MyProjectsPage from "./Components/MyProjectsPage";
 
 // ==========================================
 // CATEGORY PAGES
@@ -104,6 +105,17 @@ function App() {
             element={
               <>
                 <FavoritesPage />
+                <Footer />
+              </>
+            }
+          />
+
+          {/* ==================== MY PROJECTS PAGE ==================== */}
+          <Route
+            path="/projects"
+            element={
+              <>
+                <MyProjectsPage />
                 <Footer />
               </>
             }
