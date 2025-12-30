@@ -9,6 +9,7 @@ import {
   FaHeart,
   FaQuestionCircle,
   FaFolderOpen,
+  FaBox,
 } from "react-icons/fa";
 import vista from "../Assets/vista.png";
 import api from "../api/api";
@@ -167,12 +168,19 @@ const Navbar = () => {
                 </span>
               </div>
 
-              <div className="absolute right-0 bg-white shadow-md rounded-lg mt-2 w-40 opacity-0 group-hover:opacity-100 transition z-10">
+              <div className="absolute right-0 bg-white shadow-md rounded-lg mt-2 w-48 opacity-0 group-hover:opacity-100 transition z-10">
                 <Link
                   to="/account"
                   className="block px-4 py-2 hover:bg-gray-100"
                 >
                   My Account
+                </Link>
+                <Link
+                  to="/purchase-history"
+                  className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100"
+                >
+                  <FaBox className="text-sm" />
+                  <span>Purchase History</span>
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -260,6 +268,14 @@ const Navbar = () => {
                 >
                   <FaUser className="text-lg" />
                   <span>My Account</span>
+                </Link>
+                <Link
+                  to="/purchase-history"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-2 mb-3 hover:text-blue-700"
+                >
+                  <FaBox className="text-lg" />
+                  <span>Purchase History</span>
                 </Link>
                 <button
                   onClick={handleLogout}

@@ -36,6 +36,7 @@ import SearchResults from "./Components/SearchResults";
 import FavoritesPage from "./Components/FavoritesPage";
 import AuthDebug from "./Components/AuthDebug";
 import MyProjectsPage from "./Components/MyProjectsPage";
+import PurchaseHistoryPage from "./Components/PurchaseHistoryPage";
 
 // ==========================================
 // CATEGORY PAGES
@@ -116,6 +117,17 @@ function App() {
             element={
               <>
                 <MyProjectsPage />
+                <Footer />
+              </>
+            }
+          />
+
+          {/* ==================== PURCHASE HISTORY PAGE ==================== */}
+          <Route
+            path="/purchase-history"
+            element={
+              <>
+                <PurchaseHistoryPage />
                 <Footer />
               </>
             }
