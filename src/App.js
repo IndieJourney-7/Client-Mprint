@@ -37,6 +37,8 @@ import FavoritesPage from "./Components/FavoritesPage";
 import AuthDebug from "./Components/AuthDebug";
 import MyProjectsPage from "./Components/MyProjectsPage";
 import PurchaseHistoryPage from "./Components/PurchaseHistoryPage";
+import CheckoutPage from "./Components/CheckoutPage";
+import OrderConfirmationPage from "./Components/OrderConfirmationPage";
 
 // ==========================================
 // CATEGORY PAGES
@@ -128,6 +130,28 @@ function App() {
             element={
               <>
                 <PurchaseHistoryPage />
+                <Footer />
+              </>
+            }
+          />
+
+          {/* ==================== CHECKOUT PAGE ==================== */}
+          <Route
+            path="/checkout"
+            element={
+              <>
+                <CheckoutPage />
+                <Footer />
+              </>
+            }
+          />
+
+          {/* ==================== ORDER CONFIRMATION PAGE ==================== */}
+          <Route
+            path="/order-confirmation/:orderId"
+            element={
+              <>
+                <OrderConfirmationPage />
                 <Footer />
               </>
             }
