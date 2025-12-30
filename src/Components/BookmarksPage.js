@@ -23,6 +23,9 @@ const BookmarksPage = () => {
 
   const API_BASE_URL = "http://127.0.0.1:8000/api";
 
+  // Check if filters are active
+  const isFiltered = selectedPriceRange[0] !== priceRange.min || selectedPriceRange[1] !== priceRange.max;
+
   // Handle window resize
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
