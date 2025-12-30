@@ -19,21 +19,31 @@ export const FavoritesProvider = ({ children }) => {
 
   // Fetch all favorites
   const fetchFavorites = useCallback(async () => {
+    console.log('[FavoritesContext] Fetching favorites...');
     try {
       const response = await api.get('/api/favorites');
+      console.log('[FavoritesContext] Favorites response:', response.data);
+
       if (response.data.success) {
         const favs = response.data.data || [];
+        console.log('[FavoritesContext] Favorites data:', favs);
+        console.log('[FavoritesContext] Favorites count:', favs.length);
+
         setFavorites(favs);
         setFavoritesCount(favs.length);
 
         // Create a Set of favorite product IDs for quick lookup
         const ids = new Set(favs.map(fav => fav.product?.id || fav.product_id).filter(Boolean));
+        console.log('[FavoritesContext] Favorite IDs:', Array.from(ids));
         setFavoriteIds(ids);
       }
     } catch (error) {
-      console.error('Error fetching favorites:', error);
+      console.error('[FavoritesContext] Error fetching favorites:', error);
+      console.error('[FavoritesContext] Error response:', error.response);
+
       // If unauthorized, clear favorites
       if (error.response?.status === 401) {
+        console.log('[FavoritesContext] User not authenticated, clearing favorites');
         setFavorites([]);
         setFavoritesCount(0);
         setFavoriteIds(new Set());
@@ -147,18 +157,24 @@ export const FavoritesProvider = ({ children }) => {
   // Initialize favorites on mount (only if user is logged in)
   useEffect(() => {
     const initializeFavorites = async () => {
+      console.log('[FavoritesContext] Initializing favorites...');
       try {
         await api.get('/sanctum/csrf-cookie');
         const userRes = await api.get('/api/user');
         const userData = userRes.data?.user ?? userRes.data?.data ?? null;
 
+        console.log('[FavoritesContext] User data:', userData);
+
         if (userData) {
           // User is logged in, fetch their favorites
+          console.log('[FavoritesContext] User is logged in, fetching favorites...');
           await fetchFavorites();
+        } else {
+          console.log('[FavoritesContext] No user data found');
         }
       } catch (error) {
         // User not logged in, keep favorites empty
-        console.log('User not authenticated, skipping favorites fetch');
+        console.log('[FavoritesContext] User not authenticated, skipping favorites fetch', error);
       }
     };
 
