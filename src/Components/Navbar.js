@@ -12,13 +12,14 @@ import {
 } from "react-icons/fa";
 import vista from "../Assets/vista.png";
 import api from "../api/api";
+import { useFavorites } from "../context/FavoritesContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
+  const { favoritesCount } = useFavorites();
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [cartCount, setCartCount] = useState(0);
-  const [favoritesCount, setFavoritesCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
 
   const menuItems = [
@@ -44,19 +45,8 @@ const Navbar = () => {
           const userRes = await api.get("/api/user");
           const userData = userRes.data?.user ?? userRes.data?.data ?? null;
           setUser(userData);
-
-          // Fetch favorites count only if user is logged in
-          if (userData) {
-            try {
-              const favRes = await api.get("/api/favorites/count");
-              setFavoritesCount(favRes.data?.count || 0);
-            } catch {
-              setFavoritesCount(0);
-            }
-          }
         } catch {
           setUser(null);
-          setFavoritesCount(0);
         }
         try {
           const cartRes = await api.get("/api/cart/count");
@@ -66,7 +56,6 @@ const Navbar = () => {
         }
       } catch {
         setUser(null);
-        setFavoritesCount(0);
       }
     };
     fetchUserAndCart();

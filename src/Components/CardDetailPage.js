@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { FaRegHeart, FaHeart, FaArrowLeft, FaStar, FaStarHalfAlt, FaRegStar } from "react-icons/fa";
 import { IoChevronDown, IoCheckmarkCircle, IoClose, IoChevronBack, IoChevronForward } from "react-icons/io5";
 import api from "../api/api";
+import { useFavorites } from "../context/FavoritesContext";
 
 const categoryRoutesMap = {
   bookmarks: "bookmarks",
@@ -25,12 +26,12 @@ const categoryRoutesMap = {
 const CardDetailPage = () => {
   const { slug, category } = useParams(); // Expected route: /:category/:slug
   const navigate = useNavigate();
+  const { isFavorite: isFavoritedGlobal, toggleFavorite: toggleFavoriteGlobal } = useFavorites();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [isFavorite, setIsFavorite] = useState(false);
   const [user, setUser] = useState(null);
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -129,26 +130,8 @@ const CardDetailPage = () => {
     checkUser();
   }, []);
 
-  useEffect(() => {
-    // Check if product is favorited (only if user is logged in)
-    const checkFavoriteStatus = async () => {
-      if (!product || !user) {
-        setIsFavorite(false);
-        return;
-      }
-
-      try {
-        const response = await api.get(`/api/favorites/check/${product.id}`);
-        if (response.data?.success) {
-          setIsFavorite(response.data.is_favorited);
-        }
-      } catch {
-        setIsFavorite(false);
-      }
-    };
-
-    checkFavoriteStatus();
-  }, [product, user]);
+  // Get favorite status from context
+  const isFavorite = product ? isFavoritedGlobal(product.id) : false;
 
   const handleAddToCart = async () => {
     if (!product) return;
@@ -194,14 +177,8 @@ const CardDetailPage = () => {
   };
 
   const toggleFavorite = async () => {
-    console.log('[toggleFavorite] Function called');
-    console.log('[toggleFavorite] User:', user ? 'Logged in' : 'Not logged in');
-    console.log('[toggleFavorite] Product ID:', product?.id);
-
     // Check if user is logged in
     if (!user) {
-      console.warn('[toggleFavorite] User not logged in, redirecting to login');
-      // Redirect to login page
       navigate("/login", {
         state: {
           from: window.location.pathname,
@@ -212,33 +189,16 @@ const CardDetailPage = () => {
     }
 
     if (!product) {
-      console.error('[toggleFavorite] No product available');
       return;
     }
 
-    try {
-      console.log('[toggleFavorite] Getting CSRF cookie...');
-      await api.get("/sanctum/csrf-cookie");
-      console.log('[toggleFavorite] CSRF cookie obtained');
-
-      console.log('[toggleFavorite] Sending toggle request for product:', product.id);
-      const response = await api.post("/api/favorites/toggle", {
-        product_id: product.id
-      });
-
-      console.log('[toggleFavorite] Response received:', response.data);
-
-      if (response.data?.success) {
-        setIsFavorite(response.data.is_favorited);
-        setSuccess(response.data.message);
-        setTimeout(() => setSuccess(""), 3000);
-        console.log('[toggleFavorite] Favorite status updated to:', response.data.is_favorited);
-      }
-    } catch (err) {
-      console.error('[toggleFavorite] Error occurred:', err);
-      console.error('[toggleFavorite] Error response:', err.response?.data);
-      const errorMsg = err?.response?.data?.message || "Failed to update favorites. Please try again.";
-      setError(errorMsg);
+    // Use context toggle function
+    const result = await toggleFavoriteGlobal(product.id);
+    if (result.success) {
+      setSuccess(result.message);
+      setTimeout(() => setSuccess(""), 3000);
+    } else {
+      setError(result.message || "Failed to update favorites");
       setTimeout(() => setError(""), 3000);
     }
   };

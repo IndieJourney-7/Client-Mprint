@@ -19,23 +19,27 @@ import {
 } from 'react-icons/fa';
 import { IoGridOutline, IoListOutline } from 'react-icons/io5';
 import api from '../api/api';
+import { useFavorites } from '../context/FavoritesContext';
 
 const MyProjectsPage = () => {
   const navigate = useNavigate();
+  const { favorites, removeFromFavorites, favoritesCount } = useFavorites();
   const [activeTab, setActiveTab] = useState('wishlist');
   const [viewMode, setViewMode] = useState('grid'); // grid or list
-  const [favorites, setFavorites] = useState([]);
   const [projects, setProjects] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [user, setUser] = useState(null);
+  const [addingToCart, setAddingToCart] = useState(new Set());
+  const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const API_BASE_URL = 'http://127.0.0.1:8000';
 
   // Tabs configuration
   const tabs = [
-    { id: 'wishlist', label: 'Wishlist', icon: FaHeart, count: favorites.length },
+    { id: 'wishlist', label: 'Wishlist', icon: FaHeart, count: favoritesCount },
     { id: 'projects', label: 'My Projects', icon: FaFolderOpen, count: projects.length },
     { id: 'orders', label: 'My Orders', icon: FaBox, count: orders.length },
     { id: 'returns', label: 'Returns', icon: FaUndo, count: 0 }
@@ -47,7 +51,6 @@ const MyProjectsPage = () => {
 
   useEffect(() => {
     if (user) {
-      if (activeTab === 'wishlist') fetchFavorites();
       if (activeTab === 'projects') fetchProjects();
       if (activeTab === 'orders') fetchOrders();
     }
@@ -66,19 +69,6 @@ const MyProjectsPage = () => {
     } catch (error) {
       navigate('/login');
     }
-  };
-
-  const fetchFavorites = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/api/favorites');
-      if (response.data.success) {
-        setFavorites(response.data.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching favorites:', error);
-    }
-    setLoading(false);
   };
 
   const fetchProjects = async () => {
@@ -130,12 +120,39 @@ const MyProjectsPage = () => {
   const handleRemoveFavorite = async (productId) => {
     if (!window.confirm('Remove this item from wishlist?')) return;
 
+    const result = await removeFromFavorites(productId);
+    if (result.success) {
+      setSuccess('Product removed from wishlist');
+      setTimeout(() => setSuccess(''), 3000);
+    } else {
+      setError(result.message || 'Failed to remove from wishlist');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const handleAddToCart = async (product) => {
+    const productData = product.product || product;
+    setAddingToCart(prev => new Set([...prev, productData.id]));
     try {
-      await api.delete(`/api/favorites/${productId}`);
-      setFavorites(favorites.filter(fav => fav.product_id !== productId));
-    } catch (error) {
-      console.error('Error removing favorite:', error);
-      alert('Failed to remove from wishlist');
+      await api.get('/sanctum/csrf-cookie');
+      const response = await api.post('/api/cart', {
+        product_id: productData.id,
+        quantity: 1
+      });
+
+      if (response.data?.success) {
+        setSuccess(`${productData.name} added to cart!`);
+        setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to add to cart');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setAddingToCart(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(productData.id);
+        return newSet;
+      });
     }
   };
 
@@ -233,6 +250,20 @@ const MyProjectsPage = () => {
 
       {/* Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Success Message */}
+        {success && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            {success}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error}
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -312,13 +343,16 @@ const MyProjectsPage = () => {
                               View
                             </button>
                             <button
-                              onClick={() => {
-                                handleViewProduct(favorite);
-                              }}
-                              className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                              onClick={() => handleAddToCart(favorite)}
+                              disabled={addingToCart.has(favorite.product?.id)}
+                              className={`flex-1 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                                addingToCart.has(favorite.product?.id)
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
                             >
                               <FaShoppingCart size={14} />
-                              Add to Cart
+                              {addingToCart.has(favorite.product?.id) ? 'Adding...' : 'Add to Cart'}
                             </button>
                           </div>
                         </div>
