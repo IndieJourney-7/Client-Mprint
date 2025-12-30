@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaRegHeart, FaHeart, FaStar } from "react-icons/fa";
 import api from "../api/api";
+import { useFavorites } from "../context/FavoritesContext";
 
 const BrochuresPage = () => {
   const navigate = useNavigate();
+  const { isFavorite, toggleFavorite: toggleFavoriteContext } = useFavorites();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [favorites, setFavorites] = useState([]);
   const [user, setUser] = useState(null);
   const API_BASE_URL = "http://127.0.0.1:8000/api";
 
@@ -23,26 +24,6 @@ const BrochuresPage = () => {
     };
     checkUser();
   }, []);
-
-  useEffect(() => {
-    const fetchFavorites = async () => {
-      if (!user) {
-        setFavorites([]);
-        return;
-      }
-      try {
-        const response = await api.get("/api/favorites");
-        if (response.data?.success && response.data.data) {
-          const favoriteIds = response.data.data.map(fav => fav.product?.id).filter(Boolean);
-          setFavorites(favoriteIds);
-        }
-      } catch (err) {
-        console.error("Failed to fetch favorites:", err);
-        setFavorites([]);
-      }
-    };
-    fetchFavorites();
-  }, [user]);
 
   useEffect(() => {
     const fetchBrochures = async () => {
@@ -93,6 +74,7 @@ const BrochuresPage = () => {
 
   const toggleFavorite = async (e, productId) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!user) {
       navigate("/login", {
@@ -104,21 +86,7 @@ const BrochuresPage = () => {
       return;
     }
 
-    try {
-      const response = await api.post("/api/favorites/toggle", {
-        product_id: productId
-      });
-
-      if (response.data?.success) {
-        if (response.data.is_favorited) {
-          setFavorites([...favorites, productId]);
-        } else {
-          setFavorites(favorites.filter(id => id !== productId));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to toggle favorite:", err);
-    }
+    await toggleFavoriteContext(productId);
   };
 
   const renderStarRating = (rating) => {
@@ -214,7 +182,7 @@ const BrochuresPage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
           {products.map((product) => {
-            const isFavorite = favorites.includes(product.id);
+            const isProductFavorite = isFavorite(product.id);
             const imageSrc = getProductImageUrl(product);
 
             return (
@@ -225,7 +193,7 @@ const BrochuresPage = () => {
                       onClick={(e) => toggleFavorite(e, product.id)}
                       className="absolute top-4 right-4 z-10 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
                     >
-                      {isFavorite ? (
+                      {isProductFavorite ? (
                         <FaHeart className="text-red-500" size={16} />
                       ) : (
                         <FaRegHeart className="text-gray-600" size={16} />
