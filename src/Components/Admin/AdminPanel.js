@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { applyAttributeTemplate, hasTemplate } from './productAttributes';
 import BannerManagement from './BannerManagement';
 import OfferBarManagement from './OfferBarManagement';
+import OrdersManagement from './OrdersManagement';
+import ComplaintsManagement from './ComplaintsManagement';
 import {
   IoAdd,
   IoClose,
@@ -28,7 +30,9 @@ import {
   IoMegaphoneOutline,
   IoMenu,
   IoLogOutOutline,
-  IoChevronForward
+  IoChevronForward,
+  IoReceiptOutline,
+  IoAlertCircleOutline
 } from 'react-icons/io5';
 
 const AdminPanel = () => {
@@ -117,6 +121,20 @@ const AdminPanel = () => {
       icon: IoMegaphoneOutline,
       description: 'Top notifications',
       color: 'from-green-500 to-emerald-500'
+    },
+    {
+      id: 'orders',
+      label: 'Orders Booked',
+      icon: IoReceiptOutline,
+      description: 'Manage orders',
+      color: 'from-teal-500 to-cyan-500'
+    },
+    {
+      id: 'complaints',
+      label: 'Issues Raised',
+      icon: IoAlertCircleOutline,
+      description: 'Handle complaints',
+      color: 'from-red-500 to-orange-500'
     },
     {
       id: 'analytics',
@@ -941,6 +959,8 @@ const AdminPanel = () => {
           {/* Dynamic Content Based on Selected Section */}
           {currentSection === 'banners' && <BannerManagement />}
           {currentSection === 'offers' && <OfferBarManagement />}
+          {currentSection === 'orders' && <OrdersManagement />}
+          {currentSection === 'complaints' && <ComplaintsManagement />}
 
           {/* Products Section */}
           {currentSection === 'products' && (
