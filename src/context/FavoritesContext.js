@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../api/api';
 
 const FavoritesContext = createContext();
@@ -86,7 +86,7 @@ export const FavoritesProvider = ({ children }) => {
   const addToFavorites = useCallback(async (productId) => {
     setLoading(true);
     try {
-      const response = await api.post('/api/favorites', { product_id: productId });
+      const response = await api.post('/api/favorites/add', { product_id: productId });
       if (response.data.success) {
         // Update local state immediately for instant UI feedback
         setFavoriteIds(prev => new Set([...prev, productId]));
@@ -111,7 +111,7 @@ export const FavoritesProvider = ({ children }) => {
   const removeFromFavorites = useCallback(async (productId) => {
     setLoading(true);
     try {
-      const response = await api.delete(`/api/favorites/${productId}`);
+      const response = await api.delete(`/api/favorites/remove/${productId}`);
       if (response.data.success) {
         // Update local state immediately
         setFavoriteIds(prev => {
@@ -149,7 +149,7 @@ export const FavoritesProvider = ({ children }) => {
   const clearAllFavorites = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.delete('/api/favorites');
+      const response = await api.delete('/api/favorites/clear');
       if (response.data.success) {
         setFavorites([]);
         setFavoritesCount(0);

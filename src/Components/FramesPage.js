@@ -3,13 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { FaRegHeart, FaHeart, FaStar, FaPhotoVideo, FaFilter } from "react-icons/fa";
 import api from "../api/api";
 import FilterSidebar from "./FilterSidebar";
+import { useFavorites } from "../context/FavoritesContext";
 
 const FramesPage = () => {
+  const navigate = useNavigate();
+  const { isFavorite, toggleFavorite: contextToggleFavorite } = useFavorites();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [favorites, setFavorites] = useState([]);
-  const navigate = useNavigate();
   const [user, setUser] = useState(null);
 
   // Filter & Sort states
@@ -41,26 +42,6 @@ const FramesPage = () => {
     };
     checkUser();
   }, []);
-
-  useEffect(() => {
-    const fetchFavorites = async () => {
-      if (!user) {
-        setFavorites([]);
-        return;
-      }
-      try {
-        const response = await api.get("/api/favorites");
-        if (response.data?.success && response.data.data) {
-          const favoriteIds = response.data.data.map(fav => fav.product?.id).filter(Boolean);
-          setFavorites(favoriteIds);
-        }
-      } catch (err) {
-        console.error("Failed to fetch favorites:", err);
-        setFavorites([]);
-      }
-    };
-    fetchFavorites();
-  }, [user]);
 
   useEffect(() => {
     fetchFramesProducts();
@@ -146,8 +127,9 @@ const FramesPage = () => {
     setSortOrder('desc');
   };
 
-  const toggleFavorite = async (e, productId) => {
+  const handleToggleFavorite = async (e, productId) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!user) {
       navigate("/login", {
@@ -159,21 +141,7 @@ const FramesPage = () => {
       return;
     }
 
-    try {
-      const response = await api.post("/api/favorites/toggle", {
-        product_id: productId
-      });
-
-      if (response.data?.success) {
-        if (response.data.is_favorited) {
-          setFavorites([...favorites, productId]);
-        } else {
-          setFavorites(favorites.filter(id => id !== productId));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to toggle favorite:", err);
-    }
+    contextToggleFavorite(productId);
   };
 
   const renderStarRating = (rating) => {
@@ -332,7 +300,7 @@ const FramesPage = () => {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {products.map((product) => {
-                  const isFavorite = favorites.includes(product.id);
+                  const isFav = isFavorite(product.id);
                   const imageSrc = getProductImageUrl(product);
 
                   return (
@@ -340,10 +308,10 @@ const FramesPage = () => {
                       <Link to={`/frames/${product.slug}`}>
                         <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 relative overflow-hidden border border-pink-100">
                           <button
-                            onClick={(e) => toggleFavorite(e, product.id)}
+                            onClick={(e) => handleToggleFavorite(e, product.id)}
                             className="absolute top-4 right-4 z-10 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
                           >
-                            {isFavorite ? (
+                            {isFav ? (
                               <FaHeart className="text-red-500" size={16} />
                             ) : (
                               <FaRegHeart className="text-gray-600" size={16} />
