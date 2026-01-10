@@ -11,36 +11,57 @@ import {
   FaFolderOpen,
   FaBox,
   FaBoxes,
+  FaIdCard,
+  FaEnvelope,
 } from "react-icons/fa";
 import vista from "../Assets/vista.png";
 import api from "../api/api";
 import { useFavorites } from "../context/FavoritesContext";
+import { useCart } from "../context/CartContext";
+import MegaDropdown from "./MegaDropdown";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const { favoritesCount } = useFavorites();
+  const { cartCount } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [cartCount, setCartCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  const menuItems = [
-    { label: "View All", path: "/" },
-    { label: "Business Cards", path: "/cards" },
-    { label: "Bookmarks", path: "/bookmarks" },
-    { label: "Brochures", path: "/brochures" },
-    { label: "Certificates", path: "/certificates" },
-    { label: "Greeting Cards", path: "/greetingcards" },
-    { label: "Personalised Cards", path: "/personalised" },
-    { label: "Photo Frames", path: "/frames" },
-    { label: "Photo Prints", path: "/Prints" },
-    { label: "Posters", path: "/posters" },
-    { label: "Bulk Orders", path: "/bulk-orders" },
-  ];
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setCategoriesLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories?is_active=true`, {
+          headers: { Accept: "application/json" },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            // Sort by sort_order and map to menu format
+            const sortedCategories = (Array.isArray(data.data) ? data.data : [])
+              .filter(cat => cat.is_active)
+              .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            setCategories(sortedCategories);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
-    const fetchUserAndCart = async () => {
+    const fetchUser = async () => {
       try {
         await api.get("/sanctum/csrf-cookie");
         try {
@@ -50,17 +71,11 @@ const Navbar = () => {
         } catch {
           setUser(null);
         }
-        try {
-          const cartRes = await api.get("/api/cart/count");
-          setCartCount(cartRes.data?.count || 0);
-        } catch {
-          setCartCount(0);
-        }
       } catch {
         setUser(null);
       }
     };
-    fetchUserAndCart();
+    fetchUser();
   }, []);
 
   const handleLogout = async () => {
@@ -89,7 +104,7 @@ const Navbar = () => {
   };
 
   return (
-    <div className="w-full bg-white border-b shadow-sm relative z-30">
+    <div className="w-full bg-white border-b shadow-sm relative z-50">
       {/* ===== TOP NAVBAR ===== */}
       <div className="flex items-center justify-between px-4 lg:px-12 py-4 flex-wrap gap-4 relative z-20">
 
@@ -139,7 +154,7 @@ const Navbar = () => {
             className="flex items-center gap-2 hover:text-blue-700"
           >
             <FaFolderOpen className="text-lg" />
-            <span className="font-medium">My Projects</span>
+            <span className="font-medium">My Account</span>
           </Link>
 
           <Link
@@ -201,6 +216,14 @@ const Navbar = () => {
                       <FaBox className="text-gray-400" size={14} />
                       <span className="text-sm text-gray-700">Purchase History</span>
                     </Link>
+                    <Link
+                      to="/contact"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                    >
+                      <FaEnvelope className="text-gray-400" size={14} />
+                      <span className="text-sm text-gray-700">Contact Us</span>
+                    </Link>
                     <div className="border-t">
                       <button
                         onClick={() => {
@@ -221,12 +244,17 @@ const Navbar = () => {
 
           <Link
             to="/cart"
-            className="flex items-center gap-2 hover:text-blue-700"
+            className="flex items-center gap-2 hover:text-blue-700 relative"
           >
-            <FaShoppingBag className="text-lg" />
-            <span className="font-medium">
-              Cart {cartCount > 0 && `(${cartCount})`}
-            </span>
+            <div className="relative">
+              <FaShoppingBag className="text-lg" />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartCount > 99 ? '99+' : cartCount}
+                </span>
+              )}
+            </div>
+            <span className="font-medium">Cart</span>
           </Link>
         </div>
 
@@ -277,6 +305,22 @@ const Navbar = () => {
               <span>My Favorites {user && favoritesCount > 0 && `(${favoritesCount})`}</span>
             </Link>
 
+            <Link
+              to="/cart"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2 mb-3 hover:text-blue-700"
+            >
+              <div className="relative">
+                <FaShoppingBag className="text-lg" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center" style={{ fontSize: '10px' }}>
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </span>
+                )}
+              </div>
+              <span>Cart {cartCount > 0 && `(${cartCount})`}</span>
+            </Link>
+
             {!user ? (
               <Link
                 to="/login"
@@ -317,43 +361,97 @@ const Navbar = () => {
             <hr className="my-4" />
 
             <div className="flex flex-col gap-3 text-gray-800 font-medium text-sm">
-              {menuItems.map((item, i) => (
-                <Link
-                  key={i}
-                  to={item.path}
-                  onClick={() => setMenuOpen(false)}
-                  className={`hover:text-red-600 flex items-center gap-2 ${
-                    item.highlight
-                      ? "text-orange-600 font-bold"
-                      : ""
-                  }`}
-                >
-                  {item.highlight && <FaBoxes className="text-orange-500" size={14} />}
-                  {item.label}
-                </Link>
-              ))}
+              {/* View All link */}
+              <Link
+                to="/"
+                onClick={() => setMenuOpen(false)}
+                className="hover:text-red-600"
+              >
+                View All
+              </Link>
+
+              {/* Dynamic categories */}
+              {categoriesLoading ? (
+                <div className="text-gray-400 text-sm">Loading categories...</div>
+              ) : (
+                categories.map((category) => (
+                  <Link
+                    key={category.id}
+                    to={`/category/${category.slug}`}
+                    onClick={() => setMenuOpen(false)}
+                    className={`hover:text-red-600 flex items-center gap-2 ${
+                      category.slug === "bulk-orders"
+                        ? "text-orange-600 font-bold"
+                        : ""
+                    }`}
+                  >
+                    {category.slug === "bulk-orders" && <FaBoxes className="text-orange-500" size={14} />}
+                    {category.name}
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ===== DESKTOP CATEGORY ROW ===== */}
-      <div className="hidden md:block w-full border-t relative z-10">
-        <div className="max-w-[1600px] mx-auto flex justify-between items-center px-8 py-3 text-gray-800 text-sm font-medium">
-          {menuItems.map((item, i) => (
+      {/* ===== DESKTOP CATEGORY ROW (Scrollable) ===== */}
+      <div className="hidden md:block w-full border-t relative z-10 bg-white">
+        <div className="max-w-[1600px] mx-auto px-8">
+          {/* Scrollable category container */}
+          <div className="flex items-center overflow-x-auto py-3 text-gray-800 text-sm font-medium gap-1 scroll-smooth [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {/* View All - Regular Link (sticky) */}
             <Link
-              key={i}
-              to={item.path}
-              className={`hover:text-red-600 transition px-2 py-1 rounded ${
-                item.highlight
-                  ? "text-orange-600 font-bold flex items-center gap-1 bg-orange-50 hover:bg-orange-100"
-                  : "hover:bg-gray-50"
-              }`}
+              to="/"
+              className="hover:text-red-600 transition px-3 py-2 rounded hover:bg-gray-50 whitespace-nowrap flex-shrink-0"
             >
-              {item.highlight && <FaBoxes className="text-orange-500" size={14} />}
-              {item.label}
+              View All
             </Link>
-          ))}
+
+            {/* Divider */}
+            <div className="w-px h-5 bg-gray-300 flex-shrink-0"></div>
+
+            {/* Dynamic category links */}
+            {categoriesLoading ? (
+              <span className="text-gray-400 text-sm flex-shrink-0">Loading...</span>
+            ) : (
+              categories.map((category) => {
+                // Special handling for cards (mega dropdown)
+                if (category.slug === "cards") {
+                  return (
+                    <MegaDropdown
+                      key={category.id}
+                      label={category.name}
+                      categorySlug={category.slug}
+                      icon={FaIdCard}
+                    />
+                  );
+                }
+                // Special handling for bulk orders (mega dropdown with highlight)
+                if (category.slug === "bulk-orders") {
+                  return (
+                    <MegaDropdown
+                      key={category.id}
+                      label={category.name}
+                      categorySlug={category.slug}
+                      icon={FaBoxes}
+                      highlight={true}
+                    />
+                  );
+                }
+                // Regular category links - use new /category/:slug route
+                return (
+                  <Link
+                    key={category.id}
+                    to={`/category/${category.slug}`}
+                    className="hover:text-red-600 transition px-3 py-2 rounded hover:bg-gray-50 whitespace-nowrap flex-shrink-0"
+                  >
+                    {category.name}
+                  </Link>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
     </div>

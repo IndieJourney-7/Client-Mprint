@@ -121,6 +121,11 @@ function Newarrival() {
                 <p className="text-center font-semibold text-[15px] leading-tight mt-0">
                   {product.name}
                 </p>
+                {product.tag_line && (
+                  <p className="text-center text-[11px] text-gray-600 mt-1 px-1 line-clamp-2">
+                    {product.tag_line}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -161,6 +166,11 @@ function Newarrival() {
                   <p className="text-center font-semibold text-[16px] leading-tight mt-0">
                     {product.name}
                   </p>
+                  {product.tag_line && (
+                    <p className="text-center text-xs text-gray-600 mt-2 px-2 line-clamp-2">
+                      {product.tag_line}
+                    </p>
+                  )}
                 </div>
               );
             })}

@@ -36,7 +36,7 @@ const SubscribeSection = () => {
                         </div>
 
                         <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                            Yes, I'd like to receive special offer emails from VistaPrint, as well as news
+                            Yes, I'd like to receive special offer emails from Mprint, as well as news
                             about products, services and my designs in progress. Read our{" "}
                             <span className="underline cursor-pointer">Privacy and Cookie policy.</span>
                         </p>
@@ -65,13 +65,13 @@ const SubscribeSection = () => {
                 {/* LEFT SIDE TEXT */}
                 <div>
                     <h3 className="text-3xl font-bold mb-4">
-                        VistaPrint India : The leader in customisation
+                        Mprint India : The leader in customisation
                     </h3>
                     <p className="text-lg leading-relaxed">
-                        For more than 20 years, VistaPrint has helped business owners, entrepreneurs
+                        For more than 5 years, Mprint has helped business owners, entrepreneurs
                         and individuals create their identities with custom designs and professional
                         marketing. Our online printing services are intended to help you find high
-                        quality customised products you need – visiting cards, personalized clothing,
+                        quality customised products you need – business cards, personalized clothing,
                         gifting products, and much more.
                     </p>
                 </div>

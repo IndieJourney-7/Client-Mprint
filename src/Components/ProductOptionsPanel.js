@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { IoClose, IoChevronDown, IoCheckmarkCircle } from "react-icons/io5";
+import { IoClose, IoChevronDown, IoCheckmarkCircle, IoLockClosed } from "react-icons/io5";
 import { FaTag } from "react-icons/fa";
 import { BsPhone, BsPhoneLandscape } from "react-icons/bs";
 
@@ -11,7 +11,9 @@ const ProductOptionsPanel = ({
   selectedAttributes,
   onAttributeChange,
   onProceed,
-  selectedPrice
+  selectedPrice,
+  isEditMode = false,
+  isUpdating = false,
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState(new Set());
@@ -21,6 +23,12 @@ const ProductOptionsPanel = ({
     { id: "horizontal", name: "Horizontal", icon: BsPhoneLandscape },
     { id: "vertical", name: "Vertical", icon: BsPhone }
   ];
+
+  // Attributes that are NOT editable in edit mode (fixed)
+  const FIXED_ATTRIBUTES_IN_EDIT = ["orientation", "shape"];
+  
+  // Attributes that ARE editable in edit mode
+  const EDITABLE_ATTRIBUTES_IN_EDIT = ["quantity", "finish", "lamination", "enhancement"];
 
   // Filter out orientation-related keys from database attributes (we handle it separately)
   const filteredAttributeKeys = Object.keys(attributes).filter(key => {
@@ -33,8 +41,24 @@ const ProductOptionsPanel = ({
     );
   });
 
-  // Build steps: Orientation (mandatory) -> Other attributes from DB -> Quantity
-  const allSteps = ["orientation", ...filteredAttributeKeys, "quantity"];
+  // Build steps based on mode
+  // Edit mode: Only editable attributes (finish, quantity) - excluding fixed ones like shape
+  // Normal mode: All steps (orientation -> other attrs -> quantity)
+  const getEditableSteps = () => {
+    // Get all attributes that are NOT fixed (not shape, not orientation)
+    const editableFromDB = filteredAttributeKeys.filter(key => {
+      const normalizedKey = key.toLowerCase().replace(/[_\s]/g, "");
+      // Exclude fixed attributes
+      return !FIXED_ATTRIBUTES_IN_EDIT.includes(normalizedKey);
+    });
+    
+    // Always include quantity at the end
+    return [...editableFromDB, "quantity"];
+  };
+
+  const allSteps = isEditMode 
+    ? getEditableSteps()
+    : ["orientation", ...filteredAttributeKeys, "quantity"];
 
   // Reset to first step when panel opens
   useEffect(() => {
@@ -50,7 +74,7 @@ const ProductOptionsPanel = ({
       });
       setCompletedSteps(completed);
     }
-  }, [isOpen]);
+  }, [isOpen, isEditMode]);
 
   const formatLabel = (name) =>
     name.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -409,8 +433,12 @@ const ProductOptionsPanel = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-gray-50 to-white">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{product?.name}</h2>
-            <p className="text-sm text-gray-500 mt-1">Configure your card options</p>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isEditMode ? "Edit Options" : product?.name}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {isEditMode ? "Update your product configuration" : "Configure your card options"}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -471,6 +499,71 @@ const ProductOptionsPanel = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* Fixed Attributes Section - Only shown in Edit Mode */}
+          {isEditMode && (
+            <div className="mb-6 p-4 bg-gray-100 rounded-xl border border-gray-200">
+              <div className="flex items-center gap-2 text-gray-600 mb-3">
+                <IoLockClosed size={14} />
+                <span className="text-sm font-semibold">Fixed Options (Cannot be changed)</span>
+              </div>
+              <div className="space-y-3">
+                {/* Orientation - Fixed */}
+                <div className="flex items-center justify-between bg-white px-4 py-3 rounded-lg border">
+                  <span className="text-sm font-medium text-gray-600">Orientation</span>
+                  <div className="flex items-center gap-2">
+                    {selectedAttributes.orientation === "horizontal" ? (
+                      <BsPhoneLandscape size={16} className="text-blue-500" />
+                    ) : (
+                      <BsPhone size={16} className="text-blue-500" />
+                    )}
+                    <span className="text-sm font-semibold text-gray-800 capitalize">
+                      {selectedAttributes.orientation || "Not set"}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Shape - Fixed (if it exists in attributes) */}
+                {filteredAttributeKeys.filter(key => {
+                  const normalizedKey = key.toLowerCase().replace(/[_\s]/g, "");
+                  return normalizedKey === "shape";
+                }).map(shapeKey => (
+                  <div key={shapeKey} className="flex items-center justify-between bg-white px-4 py-3 rounded-lg border">
+                    <span className="text-sm font-medium text-gray-600">{formatLabel(shapeKey)}</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {selectedAttributes[shapeKey] || "Not set"}
+                    </span>
+                  </div>
+                ))}
+                
+                {/* Other fixed attributes from DB */}
+                {filteredAttributeKeys.filter(key => {
+                  const normalizedKey = key.toLowerCase().replace(/[_\s]/g, "");
+                  return FIXED_ATTRIBUTES_IN_EDIT.includes(normalizedKey) && normalizedKey !== "orientation" && normalizedKey !== "shape";
+                }).map(attrKey => (
+                  <div key={attrKey} className="flex items-center justify-between bg-white px-4 py-3 rounded-lg border">
+                    <span className="text-sm font-medium text-gray-600">{formatLabel(attrKey)}</span>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {selectedAttributes[attrKey] || "Not set"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-3 italic">
+                To change these options, please remove this item and add it again.
+              </p>
+            </div>
+          )}
+          
+          {/* Editable Options Header in Edit Mode */}
+          {isEditMode && (
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Editable Options
+              </h3>
+            </div>
+          )}
+          
           {renderCurrentStep()}
         </div>
 
@@ -503,22 +596,32 @@ const ProductOptionsPanel = ({
               <button
                 onClick={() => setCurrentStep(currentStep - 1)}
                 className="flex-1 py-3.5 px-4 border-2 border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-100 transition"
+                disabled={isUpdating}
               >
                 Back
               </button>
             )}
             <button
               onClick={handleNext}
-              disabled={!canProceed()}
+              disabled={!canProceed() || isUpdating}
               className={`
-                flex-1 py-3.5 px-4 rounded-xl font-semibold transition-all
-                ${canProceed()
+                flex-1 py-3.5 px-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
+                ${canProceed() && !isUpdating
                   ? "bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white shadow-lg shadow-cyan-500/30"
                   : "bg-gray-200 text-gray-500 cursor-not-allowed"
                 }
               `}
             >
-              {currentStep === allSteps.length - 1 ? "Confirm & Proceed" : "Continue"}
+              {isUpdating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Updating...
+                </>
+              ) : (
+                currentStep === allSteps.length - 1 
+                  ? (isEditMode ? "Update Cart" : "Confirm & Proceed") 
+                  : "Continue"
+              )}
             </button>
           </div>
         </div>

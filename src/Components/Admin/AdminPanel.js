@@ -4,6 +4,10 @@ import BannerManagement from './BannerManagement';
 import OfferBarManagement from './OfferBarManagement';
 import OrdersManagement from './OrdersManagement';
 import ComplaintsManagement from './ComplaintsManagement';
+import ContactsManagement from './ContactsManagement';
+import FaqManagement from './FaqManagement';
+import PolicyManagement from './PolicyManagement';
+import UserUploadsManagement from './UserUploadsManagement';
 import {
   IoAdd,
   IoClose,
@@ -32,7 +36,10 @@ import {
   IoLogOutOutline,
   IoChevronForward,
   IoReceiptOutline,
-  IoAlertCircleOutline
+  IoAlertCircleOutline,
+  IoMailOutline,
+  IoHelpCircleOutline,
+  IoDocumentTextOutline
 } from 'react-icons/io5';
 
 const AdminPanel = () => {
@@ -68,6 +75,7 @@ const AdminPanel = () => {
     category_id: '',
     name: '',
     slug: '',
+    tag_line: '',
     description: '',
     short_description: '',
     price: '',
@@ -76,6 +84,8 @@ const AdminPanel = () => {
     stock_quantity: '',
     weight: '',
     dimensions: '',
+    print_length_inches: '',
+    print_width_inches: '',
     attributes: {},
     is_featured: false,
     is_active: true,
@@ -91,6 +101,12 @@ const AdminPanel = () => {
     is_active: true,
     is_featured: false,
   });
+
+  // Category image states
+  const [categoryImage, setCategoryImage] = useState(null);
+  const [categoryImagePreview, setCategoryImagePreview] = useState(null);
+  const [categoryBannerImage, setCategoryBannerImage] = useState(null);
+  const [categoryBannerPreview, setCategoryBannerPreview] = useState(null);
 
   // Sidebar menu items
   const menuItems = [
@@ -135,6 +151,34 @@ const AdminPanel = () => {
       icon: IoAlertCircleOutline,
       description: 'Handle complaints',
       color: 'from-red-500 to-orange-500'
+    },
+    {
+      id: 'contacts',
+      label: 'Contact Messages',
+      icon: IoMailOutline,
+      description: 'Customer inquiries',
+      color: 'from-amber-500 to-orange-500'
+    },
+    {
+      id: 'faqs',
+      label: 'FAQs',
+      icon: IoHelpCircleOutline,
+      description: 'Manage FAQs',
+      color: 'from-yellow-500 to-amber-500'
+    },
+    {
+      id: 'policies',
+      label: 'Policies',
+      icon: IoDocumentTextOutline,
+      description: 'Terms & Privacy',
+      color: 'from-slate-500 to-gray-600'
+    },
+    {
+      id: 'uploads',
+      label: 'User Uploads',
+      icon: IoCloudUpload,
+      description: 'View user files',
+      color: 'from-cyan-500 to-blue-500'
     },
     {
       id: 'analytics',
@@ -186,6 +230,19 @@ const AdminPanel = () => {
       label: 'Quantity / Pricing Tiers',
       type: 'quantity',
       fields: ['quantity', 'price', 'unitPrice']
+    },
+    // Print Finishing Options (shown on Finalize page)
+    lamination: {
+      label: 'Lamination Type',
+      type: 'select',
+      fields: ['id', 'name', 'price'],
+      description: 'Single select - Matte, Gloss, Velvet, Soft Touch, Transparent'
+    },
+    enhancement: {
+      label: 'Print Enhancements',
+      type: 'multiselect',
+      fields: ['id', 'name', 'price'],
+      description: 'Multi-select - Gold Foil, Spot UV, Soft Touch, Texture, Die Cut'
     },
     custom: {
       label: 'Custom Attribute',
@@ -397,7 +454,8 @@ const AdminPanel = () => {
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/products`, {
+      // Fetch all products (use high per_page to get all at once)
+      const response = await fetch(`${API_BASE_URL}/products?per_page=500`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -506,6 +564,7 @@ const AdminPanel = () => {
       formData.append('category_id', productForm.category_id);
       formData.append('name', productForm.name.trim());
       formData.append('slug', productForm.slug || generateSlug(productForm.name));
+      formData.append('tag_line', productForm.tag_line?.trim() || '');
       formData.append('description', productForm.description.trim());
       formData.append('short_description', productForm.short_description.trim() || productForm.description.substring(0, 150));
       formData.append('price', price.toString());
@@ -522,6 +581,14 @@ const AdminPanel = () => {
       }
       if (productForm.dimensions) {
         formData.append('dimensions', productForm.dimensions.trim());
+      }
+
+      // Print dimensions for canvas design studio
+      if (productForm.print_length_inches) {
+        formData.append('print_length_inches', parseFloat(productForm.print_length_inches));
+      }
+      if (productForm.print_width_inches) {
+        formData.append('print_width_inches', parseFloat(productForm.print_width_inches));
       }
 
       formData.append('is_featured', productForm.is_featured ? '1' : '0');
@@ -601,21 +668,38 @@ const AdminPanel = () => {
       const url = editingItem
         ? `${API_BASE_URL}/categories/${editingItem.id}`
         : `${API_BASE_URL}/categories`;
-      const method = editingItem ? 'PUT' : 'POST';
 
-      const payload = {
-        ...categoryForm,
-        slug: categoryForm.slug || generateSlug(categoryForm.name),
-        sort_order: parseInt(categoryForm.sort_order) || 0,
-      };
+      // Use FormData for file uploads
+      const formData = new FormData();
+      formData.append('name', categoryForm.name);
+      formData.append('slug', categoryForm.slug || generateSlug(categoryForm.name));
+      formData.append('path', categoryForm.path);
+      formData.append('description', categoryForm.description || '');
+      formData.append('sort_order', parseInt(categoryForm.sort_order) || 0);
+      formData.append('is_active', categoryForm.is_active ? '1' : '0');
+      formData.append('is_featured', categoryForm.is_featured ? '1' : '0');
+
+      // Add category image if selected
+      if (categoryImage) {
+        formData.append('image', categoryImage);
+      }
+
+      // Add banner image if selected
+      if (categoryBannerImage) {
+        formData.append('banner_image', categoryBannerImage);
+      }
+
+      // For PUT requests, Laravel needs _method field
+      if (editingItem) {
+        formData.append('_method', 'PUT');
+      }
 
       const response = await fetch(url, {
-        method,
+        method: 'POST', // Always POST for FormData, use _method for PUT
         headers: {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       const data = await response.json();
@@ -652,6 +736,7 @@ const AdminPanel = () => {
       category_id: '',
       name: '',
       slug: '',
+      tag_line: '',
       description: '',
       short_description: '',
       price: '',
@@ -660,6 +745,8 @@ const AdminPanel = () => {
       stock_quantity: '',
       weight: '',
       dimensions: '',
+      print_length_inches: '',
+      print_width_inches: '',
       attributes: {},
       is_featured: false,
       is_active: true,
@@ -677,6 +764,10 @@ const AdminPanel = () => {
 
     setImageFiles([]);
     setImagePreviews([]);
+    setCategoryImage(null);
+    setCategoryImagePreview(null);
+    setCategoryBannerImage(null);
+    setCategoryBannerPreview(null);
     setShowForm(false);
     setEditingItem(null);
     setValidationErrors({});
@@ -694,6 +785,7 @@ const AdminPanel = () => {
       category_id: product.category_id || '',
       name: product.name || '',
       slug: product.slug || '',
+      tag_line: product.tag_line || '',
       description: product.description || '',
       short_description: product.short_description || '',
       price: product.price || '',
@@ -702,6 +794,8 @@ const AdminPanel = () => {
       stock_quantity: product.stock_quantity || '',
       weight: product.weight || '',
       dimensions: product.dimensions || '',
+      print_length_inches: product.print_length_inches || '',
+      print_width_inches: product.print_width_inches || '',
       attributes: product.attributes || {},
       is_featured: product.is_featured || false,
       is_active: product.is_active !== undefined ? product.is_active : true,
@@ -726,6 +820,11 @@ const AdminPanel = () => {
       is_active: category.is_active !== undefined ? category.is_active : true,
       is_featured: category.is_featured || false,
     });
+    // Load existing images for preview
+    setCategoryImage(null);
+    setCategoryImagePreview(category.image_url || null);
+    setCategoryBannerImage(null);
+    setCategoryBannerPreview(category.banner_image_url || null);
     setValidationErrors({});
     setShowForm(true);
   };
@@ -802,18 +901,24 @@ const AdminPanel = () => {
     return category ? category.name : 'Uncategorized';
   };
 
-  // Filter products based on search
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter products based on search (includes product name, SKU, and category name)
+  const filteredProducts = products.filter(product => {
+    const query = searchQuery.toLowerCase();
+    const productName = product.name?.toLowerCase() || '';
+    const productSku = product.sku?.toLowerCase() || '';
+    const categoryName = getCategoryName(product.category_id)?.toLowerCase() || '';
+
+    return productName.includes(query) ||
+           productSku.includes(query) ||
+           categoryName.includes(query);
+  });
 
   const filteredCategories = categories.filter(category =>
     category.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <aside
         className={`${
@@ -842,7 +947,7 @@ const AdminPanel = () => {
         </div>
 
         {/* Navigation Menu */}
-        <nav className="flex-1 px-3 py-6 overflow-y-auto">
+        <nav className="flex-1 px-3 py-6 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <div className="space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
@@ -928,7 +1033,7 @@ const AdminPanel = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0">
         {/* Top Header Bar */}
         <header className="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between shadow-sm">
           <div>
@@ -958,7 +1063,7 @@ const AdminPanel = () => {
         </header>
 
         {/* Content Area with Scroll */}
-        <div className="flex-1 overflow-y-auto bg-gray-50 p-8">
+        <div className="flex-1 overflow-auto min-h-0 bg-gray-50 p-8">
           {/* Success/Error Messages */}
           {success && (
             <div className="mb-6 animate-in slide-in-from-top duration-300">
@@ -1000,6 +1105,10 @@ const AdminPanel = () => {
           {currentSection === 'offers' && <OfferBarManagement />}
           {currentSection === 'orders' && <OrdersManagement />}
           {currentSection === 'complaints' && <ComplaintsManagement />}
+          {currentSection === 'contacts' && <ContactsManagement />}
+          {currentSection === 'faqs' && <FaqManagement />}
+          {currentSection === 'policies' && <PolicyManagement />}
+          {currentSection === 'uploads' && <UserUploadsManagement />}
 
           {/* Products Section */}
           {currentSection === 'products' && (
@@ -1008,7 +1117,12 @@ const AdminPanel = () => {
               <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 p-6">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                   <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Product Management</h2>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                        {filteredProducts.length} {searchQuery ? 'found' : 'total'}
+                      </span>
+                    </div>
                     <p className="text-gray-600">Manage your product catalog and inventory</p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
@@ -1016,10 +1130,10 @@ const AdminPanel = () => {
                       <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input
                         type="text"
-                        placeholder="Search products..."
+                        placeholder="Search by name, SKU, or category..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full sm:w-64 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
+                        className="w-full sm:w-72 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
                       />
                     </div>
                     <button
@@ -1037,30 +1151,34 @@ const AdminPanel = () => {
                 </div>
               </div>
 
-              {/* Products Grid/Table */}
+              {/* Products Grid/Table - Full Height with Parent Scroll */}
               <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 overflow-hidden">
                 {loading && !showForm ? (
                   <div className="p-12 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <div className="inline-flex flex-col items-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      </div>
+                      <p className="text-gray-600 font-medium">Loading products...</p>
                     </div>
-                    <p className="text-gray-600 font-medium">Loading products...</p>
                   </div>
                 ) : filteredProducts.length === 0 && !error ? (
                   <div className="p-12 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 mb-4">
-                      <IoAppsOutline size={32} className="text-gray-400" />
+                    <div className="inline-flex flex-col items-center">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 mb-4">
+                        <IoAppsOutline size={32} className="text-gray-400" />
+                      </div>
+                      <p className="text-lg font-semibold text-gray-900 mb-2">No products found</p>
+                      <p className="text-sm text-gray-500">
+                        {searchQuery ? 'Try a different search term' : 'Click "Add Product" to create your first product'}
+                      </p>
                     </div>
-                    <p className="text-lg font-semibold text-gray-900 mb-2">No products found</p>
-                    <p className="text-sm text-gray-500">
-                      {searchQuery ? 'Try a different search term' : 'Click "Add Product" to create your first product'}
-                    </p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-200/50 bg-gray-50/50">
+                    <table className="w-full border-collapse">
+                      <thead className="bg-gray-50/80 backdrop-blur-sm">
+                        <tr className="border-b border-gray-200/50">
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
@@ -1455,6 +1573,33 @@ const AdminPanel = () => {
                         <p className="text-xs text-gray-500 mt-2">Leave empty to auto-generate from product name</p>
                       </div>
 
+                      {/* Tag Line (Featured Text) */}
+                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          <span className="flex items-center gap-2">
+                            🏷️ Tag Line
+                            <span className="text-xs font-normal text-gray-500">- Shown on product cards</span>
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          name="tag_line"
+                          value={productForm.tag_line}
+                          onChange={handleProductChange}
+                          placeholder="e.g., Same Day Delivery - Mumbai, Bengaluru & Hyderabad"
+                          maxLength={100}
+                          className="w-full border border-purple-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-400 transition-all bg-white"
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <p className="text-xs text-gray-500">
+                            Short catchy text displayed prominently on product cards
+                          </p>
+                          <span className="text-xs text-gray-400 font-mono">
+                            {productForm.tag_line?.length || 0}/100
+                          </span>
+                        </div>
+                      </div>
+
                       {/* Price & Sale Price */}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -1533,31 +1678,93 @@ const AdminPanel = () => {
                         </div>
                       </div>
 
-                      {/* Weight & Dimensions */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Weight (kg)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            name="weight"
-                            value={productForm.weight}
-                            onChange={handleProductChange}
-                            placeholder="0.00"
-                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all"
-                          />
+                      {/* Weight & Physical Dimensions (Shipping Info) */}
+                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">
+                          📦 Shipping Information
+                        </label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Weight (kg)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              name="weight"
+                              value={productForm.weight}
+                              onChange={handleProductChange}
+                              placeholder="0.10"
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Dimensions (Package Size)</label>
+                            <input
+                              type="text"
+                              name="dimensions"
+                              value={productForm.dimensions}
+                              onChange={handleProductChange}
+                              placeholder="3.5x2 inches"
+                              className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all bg-white"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Dimensions</label>
-                          <input
-                            type="text"
-                            name="dimensions"
-                            value={productForm.dimensions}
-                            onChange={handleProductChange}
-                            placeholder="10cm x 5cm x 2cm"
-                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all"
-                          />
+                        <p className="text-xs text-gray-500 mt-2">
+                          Physical product dimensions for shipping and display purposes
+                        </p>
+                      </div>
+
+                      {/* Print Dimensions (for Canvas Design Studio) */}
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          <span className="flex items-center gap-2">
+                            🖨️ Print Dimensions (inches)
+                          </span>
+                        </label>
+                        <p className="text-xs text-amber-700 font-medium mb-3 bg-amber-100 px-3 py-1.5 rounded-lg inline-block">
+                          ⚠️ Required for Canvas Design Studio - Defines the actual print area
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1 font-medium">Length (Width)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.1"
+                              max="50"
+                              name="print_length_inches"
+                              value={productForm.print_length_inches}
+                              onChange={handleProductChange}
+                              placeholder="3.5"
+                              className="w-full border border-amber-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-400 transition-all bg-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1 font-medium">Height</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0.1"
+                              max="50"
+                              name="print_width_inches"
+                              value={productForm.print_width_inches}
+                              onChange={handleProductChange}
+                              placeholder="2.0"
+                              className="w-full border border-amber-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-400 transition-all bg-white"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3 bg-white border border-amber-200 rounded-lg p-3">
+                          <p className="text-xs text-gray-700 font-medium mb-1">📐 Common Print Sizes:</p>
+                          <ul className="text-xs text-gray-600 space-y-0.5">
+                            <li>• Business Card: 3.5" × 2"</li>
+                            <li>• Postcard: 6" × 4"</li>
+                            <li>• Flyer (A4): 11.7" × 8.3"</li>
+                            <li>• Banner: 36" × 24"</li>
+                          </ul>
+                          <p className="text-xs text-amber-700 mt-2 font-medium">
+                            💡 Bleed of 0.125" will be added automatically in canvas
+                          </p>
                         </div>
                       </div>
 
@@ -1873,6 +2080,113 @@ const AdminPanel = () => {
                     />
                   </div>
 
+                  {/* Category Images Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Category Thumbnail Image */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Category Image (Thumbnail)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-3">Shown in category listings on homepage. Recommended: 200x200px (Max: 40MB)</p>
+                      <div className={`border-2 border-dashed rounded-xl p-4 transition-colors ${validationErrors.image ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-blue-400'}`}>
+                        {categoryImagePreview ? (
+                          <div className="relative flex justify-center">
+                            <div className="relative">
+                              <img
+                                src={categoryImagePreview}
+                                alt="Category preview"
+                                className="w-32 h-32 object-cover rounded-full border-4 border-white shadow-lg"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCategoryImage(null);
+                                  setCategoryImagePreview(null);
+                                }}
+                                className="absolute -top-1 -right-1 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-md"
+                              >
+                                <IoClose size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center cursor-pointer py-4">
+                            <IoImageOutline size={32} className="text-gray-400 mb-2" />
+                            <span className="text-sm text-gray-500">Click to upload</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  setCategoryImage(file);
+                                  setCategoryImagePreview(URL.createObjectURL(file));
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      {validationErrors.image && (
+                        <p className="text-red-500 text-xs mt-2">
+                          {Array.isArray(validationErrors.image) ? validationErrors.image[0] : validationErrors.image}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Category Banner Image */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Banner Image (Hero)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-3">Shown at top of category page. Recommended: 1920x400px (Max: 40MB)</p>
+                      <div className={`border-2 border-dashed rounded-xl p-4 transition-colors ${validationErrors.banner_image ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-purple-400'}`}>
+                        {categoryBannerPreview ? (
+                          <div className="relative">
+                            <img
+                              src={categoryBannerPreview}
+                              alt="Banner preview"
+                              className="w-full h-32 object-cover rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCategoryBannerImage(null);
+                                setCategoryBannerPreview(null);
+                              }}
+                              className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                            >
+                              <IoClose size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex flex-col items-center justify-center cursor-pointer py-4">
+                            <IoImageOutline size={32} className="text-gray-400 mb-2" />
+                            <span className="text-sm text-gray-500">Click to upload banner</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  setCategoryBannerImage(file);
+                                  setCategoryBannerPreview(URL.createObjectURL(file));
+                                }
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                      {validationErrors.banner_image && (
+                        <p className="text-red-500 text-xs mt-2">
+                          {Array.isArray(validationErrors.banner_image) ? validationErrors.banner_image[0] : validationErrors.banner_image}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-xl">
                     <label className="flex items-center cursor-pointer group">
                       <input
@@ -1957,7 +2271,7 @@ const AdminPanel = () => {
                 <label className="block text-sm font-bold text-gray-800 mb-3">
                   Select Attribute Type
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {Object.entries(attributeTypes).map(([key, config]) => {
                     const icons = {
                       delivery_speed: '🚚',
@@ -1968,9 +2282,25 @@ const AdminPanel = () => {
                       finish: '✨',
                       color: '🎨',
                       quantity: '📦',
+                      lamination: '🛡️',
+                      enhancement: '✨',
                       custom: '⚙️'
                     };
                     const isSelected = currentAttributeType === key;
+
+                    // Helper function to split label into 2 lines intelligently
+                    const splitLabel = (label) => {
+                      const words = label.split(' ');
+                      if (words.length === 1) return [label, ''];
+                      const mid = Math.ceil(words.length / 2);
+                      return [
+                        words.slice(0, mid).join(' '),
+                        words.slice(mid).join(' ')
+                      ];
+                    };
+
+                    const [line1, line2] = splitLabel(config.label);
+
                     return (
                       <button
                         key={key}
@@ -1981,16 +2311,17 @@ const AdminPanel = () => {
                           setNewOption({ id: '', name: '', price: 0, value: '', quantity: 0, unitPrice: 0 });
                         }}
                         className={`
-                          relative p-4 rounded-2xl border-2 transition-all duration-200 text-center group
+                          relative p-4 rounded-2xl border-2 transition-all duration-200 text-center group min-h-[120px] flex flex-col items-center justify-center
                           ${isSelected
                             ? 'border-indigo-500 bg-indigo-50 shadow-lg shadow-indigo-500/20 scale-105'
                             : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-md'
                           }
                         `}
                       >
-                        <div className="text-2xl mb-2">{icons[key] || '📋'}</div>
-                        <div className={`text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
-                          {config.label.split(' ')[0]}
+                        <div className="text-3xl mb-2">{icons[key] || '📋'}</div>
+                        <div className={`text-xs font-semibold leading-tight ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
+                          <div>{line1}</div>
+                          {line2 && <div>{line2}</div>}
                         </div>
                         {isSelected && (
                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center">
@@ -2147,6 +2478,40 @@ const AdminPanel = () => {
                       className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl transition-all shadow-sm hover:shadow-md"
                     >
                       Load Colors
+                    </button>
+                  )}
+                  {currentAttributeType === 'lamination' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttributeOptions([
+                          { id: 'matte', name: 'Matte', price: 0 },
+                          { id: 'gloss', name: 'Gloss', price: 50 },
+                          { id: 'velvet', name: 'Velvet', price: 80 },
+                          { id: 'soft-touch', name: 'Soft Touch', price: 100 },
+                          { id: 'transparent', name: 'Transparent', price: 120 }
+                        ]);
+                      }}
+                      className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl transition-all shadow-sm hover:shadow-md"
+                    >
+                      Load Lamination Types
+                    </button>
+                  )}
+                  {currentAttributeType === 'enhancement' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttributeOptions([
+                          { id: 'gold-foil', name: 'Gold Foil', price: 150 },
+                          { id: 'spot-uv', name: 'Spot UV', price: 120 },
+                          { id: 'soft-touch', name: 'Soft Touch', price: 100 },
+                          { id: 'texture', name: 'Texture', price: 80 },
+                          { id: 'die-cut', name: 'Die Cut', price: 200 }
+                        ]);
+                      }}
+                      className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl transition-all shadow-sm hover:shadow-md"
+                    >
+                      Load Enhancements
                     </button>
                   )}
                   {currentAttributeType === 'custom' && (
@@ -2448,6 +2813,13 @@ const AdminPanel = () => {
           </div>
         </div>
       )}
+
+      {/* Hide scrollbar CSS */}
+      <style>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { applyAttributeTemplate, hasTemplate } from './productAttributes';
 import BannerManagement from './BannerManagement';
 import OfferBarManagement from './OfferBarManagement';
+import SubcategoryManagement from './SubcategoryManagement';
 import {
   IoAdd,
   IoClose,
@@ -28,7 +29,9 @@ import {
   IoMegaphoneOutline,
   IoMenu,
   IoLogOutOutline,
-  IoChevronForward
+  IoChevronForward,
+  IoLayersOutline,
+  IoFlashOutline
 } from 'react-icons/io5';
 
 const AdminPanel = () => {
@@ -62,6 +65,7 @@ const AdminPanel = () => {
   // Product Form State
   const [productForm, setProductForm] = useState({
     category_id: '',
+    subcategory_id: '',
     name: '',
     slug: '',
     description: '',
@@ -74,8 +78,13 @@ const AdminPanel = () => {
     dimensions: '',
     attributes: {},
     is_featured: false,
+    is_new: false,
     is_active: true,
   });
+
+  // Subcategories state
+  const [subcategories, setSubcategories] = useState([]);
+  const [filteredSubcategories, setFilteredSubcategories] = useState([]);
 
   // Category Form State
   const [categoryForm, setCategoryForm] = useState({
@@ -103,6 +112,13 @@ const AdminPanel = () => {
       icon: IoGridOutline,
       description: 'Organize catalog',
       color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'subcategories',
+      label: 'Subcategories',
+      icon: IoLayersOutline,
+      description: 'Mega menu columns',
+      color: 'from-cyan-500 to-teal-500'
     },
     {
       id: 'banners',
@@ -334,6 +350,40 @@ const AdminPanel = () => {
     setLoading(false);
   };
 
+  // Fetch Subcategories
+  const fetchSubcategories = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/subcategories`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setSubcategories(data.data);
+        }
+      }
+    } catch (err) {
+      console.error('Fetch subcategories error:', err);
+    }
+  };
+
+  // Filter subcategories when category changes
+  useEffect(() => {
+    if (productForm.category_id) {
+      const filtered = subcategories.filter(
+        sub => sub.category_id === parseInt(productForm.category_id)
+      );
+      setFilteredSubcategories(filtered);
+    } else {
+      setFilteredSubcategories([]);
+    }
+  }, [productForm.category_id, subcategories]);
+
   // Fetch Products
   const fetchProducts = async () => {
     setLoading(true);
@@ -374,6 +424,7 @@ const AdminPanel = () => {
   useEffect(() => {
     fetchCategories();
     fetchProducts();
+    fetchSubcategories();
   }, []);
 
   // Handle Product Form Changes
@@ -447,6 +498,9 @@ const AdminPanel = () => {
 
       const formData = new FormData();
       formData.append('category_id', productForm.category_id);
+      if (productForm.subcategory_id) {
+        formData.append('subcategory_id', productForm.subcategory_id);
+      }
       formData.append('name', productForm.name.trim());
       formData.append('slug', productForm.slug || generateSlug(productForm.name));
       formData.append('description', productForm.description.trim());
@@ -468,6 +522,7 @@ const AdminPanel = () => {
       }
 
       formData.append('is_featured', productForm.is_featured ? '1' : '0');
+      formData.append('is_new', productForm.is_new ? '1' : '0');
       formData.append('is_active', productForm.is_active ? '1' : '0');
 
       formData.append('attributes', JSON.stringify(productForm.attributes));
@@ -593,6 +648,7 @@ const AdminPanel = () => {
   const resetForm = () => {
     setProductForm({
       category_id: '',
+      subcategory_id: '',
       name: '',
       slug: '',
       description: '',
@@ -605,6 +661,7 @@ const AdminPanel = () => {
       dimensions: '',
       attributes: {},
       is_featured: false,
+      is_new: false,
       is_active: true,
     });
 
@@ -635,6 +692,7 @@ const AdminPanel = () => {
     setCurrentSection('products');
     setProductForm({
       category_id: product.category_id || '',
+      subcategory_id: product.subcategory_id || '',
       name: product.name || '',
       slug: product.slug || '',
       description: product.description || '',
@@ -647,6 +705,7 @@ const AdminPanel = () => {
       dimensions: product.dimensions || '',
       attributes: product.attributes || {},
       is_featured: product.is_featured || false,
+      is_new: product.is_new || false,
       is_active: product.is_active !== undefined ? product.is_active : true,
     });
 
@@ -941,6 +1000,7 @@ const AdminPanel = () => {
           {/* Dynamic Content Based on Selected Section */}
           {currentSection === 'banners' && <BannerManagement />}
           {currentSection === 'offers' && <OfferBarManagement />}
+          {currentSection === 'subcategories' && <SubcategoryManagement />}
 
           {/* Products Section */}
           {currentSection === 'products' && (
@@ -1328,35 +1388,61 @@ const AdminPanel = () => {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* LEFT COLUMN */}
                     <div className="space-y-6">
-                      {/* Category Selection */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
-                        <select
-                          name="category_id"
-                          value={productForm.category_id}
-                          onChange={handleProductChange}
-                          required
-                          className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-4 transition-all ${
-                            validationErrors.category_id
-                              ? 'border-red-300 focus:ring-red-100'
-                              : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
-                          }`}
-                        >
-                          <option value="">Select Category</option>
-                          {categories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.name}
+                      {/* Category & Subcategory Selection */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
+                          <select
+                            name="category_id"
+                            value={productForm.category_id}
+                            onChange={handleProductChange}
+                            required
+                            className={`w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-4 transition-all ${
+                              validationErrors.category_id
+                                ? 'border-red-300 focus:ring-red-100'
+                                : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
+                            }`}
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
+                          {validationErrors.category_id && (
+                            <p className="mt-2 text-sm text-red-600">
+                              {Array.isArray(validationErrors.category_id)
+                                ? validationErrors.category_id[0]
+                                : validationErrors.category_id
+                              }
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Subcategory</label>
+                          <select
+                            name="subcategory_id"
+                            value={productForm.subcategory_id}
+                            onChange={handleProductChange}
+                            disabled={!productForm.category_id || filteredSubcategories.length === 0}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="">
+                              {!productForm.category_id
+                                ? 'Select category first'
+                                : filteredSubcategories.length === 0
+                                  ? 'No subcategories'
+                                  : 'Select Subcategory'}
                             </option>
-                          ))}
-                        </select>
-                        {validationErrors.category_id && (
-                          <p className="mt-2 text-sm text-red-600">
-                            {Array.isArray(validationErrors.category_id)
-                              ? validationErrors.category_id[0]
-                              : validationErrors.category_id
-                            }
-                          </p>
-                        )}
+                            {filteredSubcategories.map((sub) => (
+                              <option key={sub.id} value={sub.id}>
+                                {sub.name}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">For mega menu organization</p>
+                        </div>
                       </div>
 
                       {/* Product Name */}
@@ -1596,27 +1682,46 @@ const AdminPanel = () => {
                       </div>
 
                       {/* Checkboxes */}
-                      <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-xl">
-                        <label className="flex items-center cursor-pointer group">
-                          <input
-                            type="checkbox"
-                            name="is_featured"
-                            checked={productForm.is_featured}
-                            onChange={handleProductChange}
-                            className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
-                          />
-                          <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Featured Product</span>
-                        </label>
-                        <label className="flex items-center cursor-pointer group">
-                          <input
-                            type="checkbox"
-                            name="is_active"
-                            checked={productForm.is_active}
-                            onChange={handleProductChange}
-                            className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
-                          />
-                          <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Active</span>
-                        </label>
+                      <div className="p-4 bg-gray-50 rounded-xl">
+                        <div className="flex flex-wrap items-center gap-6">
+                          <label className="flex items-center cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              name="is_featured"
+                              checked={productForm.is_featured}
+                              onChange={handleProductChange}
+                              className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
+                            />
+                            <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Featured Product</span>
+                          </label>
+                          <label className="flex items-center cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              name="is_new"
+                              checked={productForm.is_new}
+                              onChange={handleProductChange}
+                              className="h-5 w-5 text-green-600 focus:ring-4 focus:ring-green-100 border-gray-300 rounded cursor-pointer"
+                            />
+                            <div className="ml-3 flex items-center gap-2">
+                              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Mark as NEW</span>
+                              <span className="bg-green-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">NEW</span>
+                            </div>
+                          </label>
+                          <label className="flex items-center cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              name="is_active"
+                              checked={productForm.is_active}
+                              onChange={handleProductChange}
+                              className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
+                            />
+                            <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Active</span>
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-3">
+                          <IoFlashOutline className="inline mr-1" size={12} />
+                          NEW badge auto-shows for 30 days after creation. Check "Mark as NEW" for permanent badge.
+                        </p>
                       </div>
                     </div>
 

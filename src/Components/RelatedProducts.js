@@ -163,7 +163,7 @@ const RelatedProducts = ({
           </div>
           {showViewAll && category && (
             <Link
-              to={`/${category}`}
+              to={`/category/${category}`}
               className="hidden md:flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold transition-colors"
             >
               View All
@@ -204,12 +204,17 @@ const RelatedProducts = ({
               const imageSrc = getProductImageUrl(product);
               const productCategory = product.category?.slug || category;
 
+              // Build proper navigation path
+              const productPath = productCategory 
+                ? `/category/${productCategory}/${product.slug}`
+                : `/products/${product.slug}`;
+
               return (
                 <div
                   key={product.id}
                   className="flex-shrink-0 w-[280px] group/card"
                 >
-                  <Link to={`/${productCategory}/${product.slug}`}>
+                  <Link to={productPath}>
                     <div className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
                       <div className="relative aspect-square overflow-hidden bg-gray-50">
                         <img
@@ -247,9 +252,15 @@ const RelatedProducts = ({
                       </div>
 
                       <div className="p-4">
-                        <h3 className="text-base font-semibold text-gray-900 mb-1.5 line-clamp-2 group-hover/card:text-blue-600 transition-colors min-h-[48px]">
+                        <h3 className="text-base font-semibold text-gray-900 mb-1.5 line-clamp-2 group-hover/card:text-blue-600 transition-colors">
                           {product.name}
                         </h3>
+
+                        {product.tag_line && (
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                            {product.tag_line}
+                          </p>
+                        )}
 
                         {parseFloat(product.rating) > 0 && (
                           <div className="flex items-center gap-1.5 mb-2">
@@ -296,7 +307,7 @@ const RelatedProducts = ({
         {showViewAll && category && (
           <div className="mt-6 text-center md:hidden">
             <Link
-              to={`/${category}`}
+              to={`/category/${category}`}
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
             >
               View All {category.charAt(0).toUpperCase() + category.slice(1)}

@@ -8,7 +8,10 @@ import {
   IoCheckmarkCircle,
   IoCloseCircle,
   IoChevronDown,
-  IoChevronUp
+  IoChevronUp,
+  IoChevronBack,
+  IoChevronForward,
+  IoImageOutline
 } from 'react-icons/io5';
 import api from '../../api/api';
 
@@ -21,8 +24,20 @@ const OrdersManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null);
+  // Track which design side is displayed for each order item
+  const [displayedSide, setDisplayedSide] = useState({});
+  // Image preview modal
+  const [previewImage, setPreviewImage] = useState(null);
 
   const API_BASE_URL = 'http://127.0.0.1:8000';
+
+  // Toggle design side display
+  const toggleDesignSide = (itemId) => {
+    setDisplayedSide(prev => ({
+      ...prev,
+      [itemId]: prev[itemId] === 'back' ? 'front' : 'back'
+    }));
+  };
 
   useEffect(() => {
     fetchOrders();
@@ -253,19 +268,103 @@ const OrdersManagement = () => {
                     </div>
                   </div>
 
-                  {/* Order Items */}
+                  {/* Order Items with Design Images */}
                   <div className="mb-4">
                     <h4 className="font-semibold text-gray-900 mb-2">Order Items</h4>
-                    <div className="space-y-2">
-                      {order.order_items?.map((item) => (
-                        <div key={item.id} className="flex justify-between items-center bg-white rounded p-3">
-                          <div>
-                            <p className="font-medium text-gray-900">{item.product_name}</p>
-                            <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                    <div className="space-y-3">
+                      {order.order_items?.map((item) => {
+                        const hasFrontDesign = !!item.design_front_url;
+                        const hasBackDesign = !!item.design_back_url;
+                        const hasBothDesigns = hasFrontDesign && hasBackDesign;
+                        const hasAnyDesign = hasFrontDesign || hasBackDesign;
+                        const currentSide = displayedSide[item.id] || 'front';
+                        
+                        // Get current display image
+                        let displayImage = null;
+                        let displayLabel = null;
+                        if (hasAnyDesign) {
+                          if (currentSide === 'front' && hasFrontDesign) {
+                            displayImage = item.design_front_url;
+                            displayLabel = 'Front';
+                          } else if (currentSide === 'back' && hasBackDesign) {
+                            displayImage = item.design_back_url;
+                            displayLabel = 'Back';
+                          } else if (hasFrontDesign) {
+                            displayImage = item.design_front_url;
+                            displayLabel = 'Front';
+                          } else {
+                            displayImage = item.design_back_url;
+                            displayLabel = 'Back';
+                          }
+                        }
+                        
+                        return (
+                          <div key={item.id} className="flex gap-4 bg-white rounded-lg p-4 border">
+                            {/* Design Image Preview */}
+                            {hasAnyDesign ? (
+                              <div className="flex-shrink-0 relative group">
+                                <div 
+                                  className="w-24 h-16 bg-gray-100 rounded-lg overflow-hidden cursor-pointer border"
+                                  onClick={() => setPreviewImage(displayImage)}
+                                >
+                                  <img
+                                    src={displayImage}
+                                    alt={`${item.product_name} - ${displayLabel}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {displayLabel && (
+                                    <div className="absolute top-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                                      {displayLabel}
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Navigation arrows for front/back */}
+                                {hasBothDesigns && (
+                                  <div className="flex justify-center gap-1 mt-1">
+                                    <button
+                                      onClick={() => toggleDesignSide(item.id)}
+                                      className="p-0.5 bg-gray-200 rounded hover:bg-gray-300"
+                                      title="Toggle side"
+                                    >
+                                      <IoChevronBack size={12} />
+                                    </button>
+                                    <span className="text-[10px] text-gray-500">
+                                      {currentSide === 'front' ? '1/2' : '2/2'}
+                                    </span>
+                                    <button
+                                      onClick={() => toggleDesignSide(item.id)}
+                                      className="p-0.5 bg-gray-200 rounded hover:bg-gray-300"
+                                      title="Toggle side"
+                                    >
+                                      <IoChevronForward size={12} />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex-shrink-0 w-24 h-16 bg-gray-100 rounded-lg flex items-center justify-center border">
+                                <IoImageOutline className="text-gray-400" size={24} />
+                              </div>
+                            )}
+                            
+                            {/* Item Details */}
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-900">{item.product_name}</p>
+                              <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                              {hasAnyDesign && (
+                                <p className="text-xs text-cyan-600 mt-1">
+                                  ✓ Custom Design Attached
+                                </p>
+                              )}
+                            </div>
+                            
+                            {/* Price */}
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">₹{parseFloat(item.subtotal).toFixed(2)}</p>
+                            </div>
                           </div>
-                          <p className="font-semibold text-gray-900">₹{parseFloat(item.subtotal).toFixed(2)}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -316,6 +415,29 @@ const OrdersManagement = () => {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl w-full">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300"
+            >
+              Close ✕
+            </button>
+            <img
+              src={previewImage}
+              alt="Design Preview"
+              className="w-full max-h-[80vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,32 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { FaFacebookF, FaInstagram, FaYoutube } from "react-icons/fa";
 import { RiMastercardFill, RiVisaLine } from "react-icons/ri";
 import { IoLogoTwitter, IoChevronDown } from "react-icons/io5";
+
+// Custom ScrollLink component - scrolls to top smoothly then navigates
+const ScrollLink = ({ to, children, className }) => {
+  const navigate = useNavigate();
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    // Smooth scroll to top
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+    // Navigate after a small delay to allow scroll animation
+    setTimeout(() => {
+      navigate(to);
+    }, 300);
+  };
+
+  return (
+    <a href={to} onClick={handleClick} className={className}>
+      {children}
+    </a>
+  );
+};
 
 const Footer = () => {
   return (
@@ -13,47 +38,45 @@ const Footer = () => {
           <div>
             <p className="font-medium text-base text-white">
               Easy Returns:{" "}
-              <a className="underline cursor-pointer hover:text-gray-200 transition">
+              <ScrollLink to="/contact" className="underline cursor-pointer hover:text-gray-200 transition">
                 Free Replacement or Full Refund
-              </a>
+              </ScrollLink>
             </p>
           </div>
 
-          {/* Column 2 */}
+          {/* Column 2 - Let us help */}
           <div>
             <p className="font-semibold text-base mb-3 text-white">Let us help</p>
             <ul className="space-y-2 text-sm text-gray-200">
-              <li className="cursor-pointer hover:underline">My Account</li>
-              <li className="cursor-pointer hover:underline">Contact us</li>
-              <li className="cursor-pointer hover:underline">Bulk Order Inquiry</li>
+              <li><ScrollLink to="/login" className="hover:underline cursor-pointer">My Account</ScrollLink></li>
+              <li><ScrollLink to="/contact" className="hover:underline cursor-pointer">Contact Us</ScrollLink></li>
+              <li><ScrollLink to="/bulk-orders" className="hover:underline cursor-pointer">Bulk Order Inquiry</ScrollLink></li>
+              <li><ScrollLink to="/purchase-history" className="hover:underline cursor-pointer">Track Order</ScrollLink></li>
+              <li><ScrollLink to="/favorites" className="hover:underline cursor-pointer">My Favorites</ScrollLink></li>
+              <li><ScrollLink to="/cart" className="hover:underline cursor-pointer">My Cart</ScrollLink></li>
             </ul>
           </div>
 
-          {/* Column 3 */}
+          {/* Column 3 - Our Company */}
           <div>
             <p className="font-semibold text-base mb-3 text-white">Our Company</p>
             <ul className="space-y-2 text-sm text-gray-200">
-              <li className="cursor-pointer hover:underline">Careers</li>
-              <li className="cursor-pointer hover:underline">For investors</li>
-              <li className="cursor-pointer hover:underline">For media</li>
-              <li className="cursor-pointer hover:underline">Sustainability</li>
-              <li className="cursor-pointer hover:underline">Annual Returns</li>
-              <li className="cursor-pointer hover:underline">
-                Corporate Social Responsibility
-              </li>
+              <li><ScrollLink to="/about" className="hover:underline cursor-pointer">About Us</ScrollLink></li>
+              <li><ScrollLink to="/careers" className="hover:underline cursor-pointer">Careers</ScrollLink></li>
+              <li><ScrollLink to="/contact" className="hover:underline cursor-pointer">Contact</ScrollLink></li>
+              <li><ScrollLink to="/" className="hover:underline cursor-pointer">Our Products</ScrollLink></li>
+              <li><ScrollLink to="/faq" className="hover:underline cursor-pointer">FAQ's</ScrollLink></li>
             </ul>
           </div>
 
-          {/* Column 4 */}
+          {/* Column 4 - Our Policies */}
           <div>
-            <p className="font-semibold text-base mb-3 text-white">Our policies</p>
+            <p className="font-semibold text-base mb-3 text-white">Our Policies</p>
             <ul className="space-y-2 text-sm text-gray-200">
-              <li className="cursor-pointer hover:underline">Terms and Conditions</li>
-              <li className="cursor-pointer hover:underline">
-                Vista Privacy and Cookie Policy
-              </li>
-              <li className="cursor-pointer hover:underline">Copyright matters</li>
-              <li className="cursor-pointer hover:underline">Patents & trademarks</li>
+              <li><ScrollLink to="/terms" className="hover:underline cursor-pointer">Terms and Conditions</ScrollLink></li>
+              <li><ScrollLink to="/privacy" className="hover:underline cursor-pointer">Privacy Policy</ScrollLink></li>
+              <li><ScrollLink to="/refund" className="hover:underline cursor-pointer">Refund Policy</ScrollLink></li>
+              <li><ScrollLink to="/shipping" className="hover:underline cursor-pointer">Shipping Policy</ScrollLink></li>
             </ul>
           </div>
         </div>
@@ -65,13 +88,14 @@ const Footer = () => {
           {/* Left Side - Contact & Text */}
           <div className="text-center lg:text-left text-gray-400 text-sm leading-relaxed lg:w-1/3">
             <div className="space-x-3 mb-2">
-              <a className="hover:underline text-blue-400 cursor-pointer">
+              <a href="tel:02522669393" className="hover:underline text-blue-400 cursor-pointer">
                 02522-669393
               </a>
-              <a className="hover:underline text-blue-400 cursor-pointer">Home</a>
+              <ScrollLink to="/" className="hover:underline text-blue-400 cursor-pointer">Home</ScrollLink>
+              <ScrollLink to="/contact" className="hover:underline text-blue-400 cursor-pointer">Contact</ScrollLink>
             </div>
             <p className="text-xs max-w-md mx-auto lg:mx-0 text-gray-400">
-              A company © 2001-2025 Mprints. All rights reserved.
+              © 2001-2025 Mprints. All rights reserved.
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Unless stated otherwise, prices are exclusive of delivery and product options.

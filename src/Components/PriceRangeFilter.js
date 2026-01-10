@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }) => {
   const [minValue, setMinValue] = useState(value[0]);
@@ -7,7 +7,6 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
   const debounceTimer = useRef(null);
   const minValRef = useRef(null);
   const maxValRef = useRef(null);
-  const rangeRef = useRef(null);
 
   // Update local state when prop value changes (but not during dragging)
   useEffect(() => {
@@ -16,6 +15,17 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
       setMaxValue(value[1]);
     }
   }, [value, isDragging]);
+
+  // Update local state when min/max range changes (initial load or category change)
+  useEffect(() => {
+    if (!isDragging) {
+      // Ensure values are within the new range
+      const clampedMin = Math.max(min, Math.min(value[0], max));
+      const clampedMax = Math.max(min, Math.min(value[1], max));
+      setMinValue(clampedMin);
+      setMaxValue(clampedMax);
+    }
+  }, [min, max, isDragging]);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -40,32 +50,32 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
   }, [onChange]);
 
   const handleMinChange = (e) => {
-    const value = Math.min(Number(e.target.value), maxValue - 1);
-    setMinValue(value);
+    const newValue = Math.min(Number(e.target.value), maxValue - 1);
+    setMinValue(newValue);
     setIsDragging(true);
-    debouncedOnChange(value, maxValue);
+    debouncedOnChange(newValue, maxValue);
   };
 
   const handleMaxChange = (e) => {
-    const value = Math.max(Number(e.target.value), minValue + 1);
-    setMaxValue(value);
+    const newValue = Math.max(Number(e.target.value), minValue + 1);
+    setMaxValue(newValue);
     setIsDragging(true);
-    debouncedOnChange(minValue, value);
+    debouncedOnChange(minValue, newValue);
   };
 
   const handleMinInputChange = (e) => {
-    const value = Math.min(Number(e.target.value) || 0, maxValue - 1);
-    setMinValue(value);
+    const newValue = Math.max(min, Math.min(Number(e.target.value) || min, maxValue - 1));
+    setMinValue(newValue);
     if (onChange) {
-      onChange([value, maxValue]);
+      onChange([newValue, maxValue]);
     }
   };
 
   const handleMaxInputChange = (e) => {
-    const value = Math.max(Number(e.target.value) || 0, minValue + 1);
-    setMaxValue(value);
+    const newValue = Math.min(max, Math.max(Number(e.target.value) || max, minValue + 1));
+    setMaxValue(newValue);
     if (onChange) {
-      onChange([minValue, value]);
+      onChange([minValue, newValue]);
     }
   };
 
@@ -74,53 +84,10 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
   };
 
   // Calculate percentage for styling
-  const getPercent = (value) => ((value - min) / (max - min)) * 100;
+  const getPercent = (val) => ((val - min) / (max - min)) * 100;
 
   return (
-    <div className="space-y-6">
-      {/* Dual Range Slider */}
-      <div className="relative pt-2 pb-4 px-2">
-        {/* Track Background */}
-        <div className="absolute top-1/2 -translate-y-1/2 left-2 right-2 h-2 bg-gray-200 rounded-full"></div>
-
-        {/* Active Track */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 h-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full shadow-lg"
-          style={{
-            left: `calc(${getPercent(minValue)}% + 8px)`,
-            right: `calc(${100 - getPercent(maxValue)}% + 8px)`,
-          }}
-        ></div>
-
-        {/* Min Range Input */}
-        <input
-          ref={minValRef}
-          type="range"
-          min={min}
-          max={max}
-          value={minValue}
-          onChange={handleMinChange}
-          className="absolute w-full h-2 bg-transparent appearance-none pointer-events-none z-10"
-          style={{
-            zIndex: minValue > max - 100 ? 5 : 3,
-          }}
-        />
-
-        {/* Max Range Input */}
-        <input
-          ref={maxValRef}
-          type="range"
-          min={min}
-          max={max}
-          value={maxValue}
-          onChange={handleMaxChange}
-          className="absolute w-full h-2 bg-transparent appearance-none pointer-events-none z-10"
-          style={{
-            zIndex: 4,
-          }}
-        />
-      </div>
-
+    <div className="space-y-4">
       {/* Price Input Fields */}
       <div className="flex items-center gap-4">
         <div className="flex-1">
@@ -193,59 +160,6 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
       </div>
 
       <style jsx>{`
-        input[type='range'] {
-          pointer-events: all;
-        }
-
-        input[type='range']::-webkit-slider-thumb {
-          appearance: none;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: white;
-          border: 4px solid #3B82F6;
-          cursor: grab;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), 0 0 0 4px rgba(59, 130, 246, 0.1);
-          transition: all 0.2s ease;
-          pointer-events: all;
-        }
-
-        input[type='range']:active::-webkit-slider-thumb {
-          cursor: grabbing;
-          box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6), 0 0 0 6px rgba(59, 130, 246, 0.15);
-          transform: scale(1.1);
-        }
-
-        input[type='range']::-moz-range-thumb {
-          appearance: none;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: white;
-          border: 4px solid #3B82F6;
-          cursor: grab;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4), 0 0 0 4px rgba(59, 130, 246, 0.1);
-          transition: all 0.2s ease;
-          pointer-events: all;
-        }
-
-        input[type='range']:active::-moz-range-thumb {
-          cursor: grabbing;
-          box-shadow: 0 6px 16px rgba(59, 130, 246, 0.6), 0 0 0 6px rgba(59, 130, 246, 0.15);
-          transform: scale(1.1);
-        }
-
-        /* Hide default track */
-        input[type='range']::-webkit-slider-runnable-track {
-          appearance: none;
-          background: transparent;
-        }
-
-        input[type='range']::-moz-range-track {
-          appearance: none;
-          background: transparent;
-        }
-
         /* Remove number input spinners */
         input[type='number']::-webkit-inner-spin-button,
         input[type='number']::-webkit-outer-spin-button {
