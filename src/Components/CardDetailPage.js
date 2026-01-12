@@ -864,7 +864,7 @@ const CardDetailPage = () => {
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
               {/* Browse Designs Button - Primary */}
-              {/* <button
+              <button
                 onClick={() => {
                   const configPath = categorySlug
                     ? `/category/${categorySlug}/${actualProductSlug}/configure`
@@ -877,7 +877,7 @@ const CardDetailPage = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-              </button> */}
+              </button>
 
               {/* Upload Design Button - Secondary */}
               <button
@@ -886,7 +886,7 @@ const CardDetailPage = () => {
                   // This ensures canvas knows what shape to render (Vistaprint flow)
                   setShowDesignOptionsModal(true);
                 }}
-                className="w-full py-4 px-6 bg-cyan-500 border-2 border-cyan-400 hover:border-cyan-500 text-gray-700 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-4 px-6 bg-white border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <span>Upload design</span>
                 <FaUpload className="w-4 h-4" />

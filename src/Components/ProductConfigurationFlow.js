@@ -17,6 +17,7 @@ import api from "../api/api";
 import { useFavorites } from "../context/FavoritesContext";
 import CanvasDesignStudio from "./CanvasDesign";
 import useWorkSession from "../hooks/useWorkSession";
+import TemplateBrowser from "./TemplateBrowser";
 
 // Step indicators
 const STEPS = [
@@ -675,8 +676,23 @@ const ProductConfigurationFlow = () => {
             </div>
           </div>
 
-          {/* Continue Button */}
-          <div className="pt-6 border-t">
+          {/* Action Buttons */}
+          <div className="pt-6 border-t space-y-3">
+            {/* Browse Designs Button */}
+            <button
+              onClick={() => setCurrentStep(4)} // Navigate to template browser
+              disabled={!canProceedToStep2}
+              className={`w-full py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all ${
+                canProceedToStep2
+                  ? "bg-white border-2 border-cyan-500 text-cyan-500 hover:bg-cyan-50"
+                  : "bg-gray-100 border-2 border-gray-300 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              Browse Designs
+              <IoArrowForward size={20} />
+            </button>
+
+            {/* Continue to Design Studio Button */}
             <button
               onClick={handleNext}
               disabled={!canProceedToStep2 || designCreating}
@@ -693,11 +709,15 @@ const ProductConfigurationFlow = () => {
                 </>
               ) : (
                 <>
-                  Continue to Design
+                  Upload Your Own Design
                   <IoArrowForward size={20} />
                 </>
               )}
             </button>
+
+            <p className="text-center text-sm text-gray-500">
+              Browse pre-made templates or upload your own design
+            </p>
           </div>
         </div>
       </div>
@@ -1163,9 +1183,19 @@ const ProductConfigurationFlow = () => {
     );
   };
 
+  // Render Step 4: Template Browser
+  const renderStep4 = () => (
+    <TemplateBrowser />
+  );
+
   // Main render
   if (showDesignStudio && currentStep === 2) {
     return renderStep2();
+  }
+
+  // Template Browser (Step 4)
+  if (currentStep === 4) {
+    return renderStep4();
   }
 
   return (
