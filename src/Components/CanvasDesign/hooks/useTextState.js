@@ -132,29 +132,56 @@ const useTextState = (cardPreset) => {
   }, [currentTextLayers, setCurrentTextLayers, cardPreset]);
 
   // Add text layer to a SPECIFIC side (front or back)
-  // This is used for restoring saved text layers during Edit Design
+  // Used for restoring saved text layers during Edit Design
+  // The layerProps should contain all saved properties - we just merge with defaults
   const addTextLayerToSide = useCallback((side, layerProps) => {
-    console.log('[useTextState] addTextLayerToSide called:', { side, layerProps });
+    console.log('[useTextState] addTextLayerToSide called:', { side, text: layerProps?.text, id: layerProps?.id });
 
+    if (!layerProps) {
+      console.error('[useTextState] addTextLayerToSide: layerProps is null/undefined');
+      return null;
+    }
+
+    // Create the new layer by merging defaults with provided props
+    // Use provided values if they exist, otherwise fall back to defaults
     const newLayer = {
-      // Generate new ID to ensure uniqueness, but preserve original if provided
+      // Core properties
       id: layerProps.id || generateId(),
-      text: layerProps.text || 'Text',
+      text: layerProps.text ?? 'Text',
+      // Position (use provided or center of cardPreset or fallback)
       x: layerProps.x ?? (cardPreset?.width ? cardPreset.width / 2 - 50 : 100),
       y: layerProps.y ?? (cardPreset?.height ? cardPreset.height / 2 : 100),
+      // Size
       width: layerProps.width ?? 200,
       height: layerProps.height ?? 40,
       rotation: layerProps.rotation ?? 0,
-      ...DEFAULT_TEXT_PROPS,
-      ...layerProps, // Override with all provided properties
+      // Text styling - merge with defaults
+      fontFamily: layerProps.fontFamily ?? DEFAULT_TEXT_PROPS.fontFamily,
+      fontSize: layerProps.fontSize ?? DEFAULT_TEXT_PROPS.fontSize,
+      fontWeight: layerProps.fontWeight ?? DEFAULT_TEXT_PROPS.fontWeight,
+      fontStyle: layerProps.fontStyle ?? DEFAULT_TEXT_PROPS.fontStyle,
+      textAlign: layerProps.textAlign ?? DEFAULT_TEXT_PROPS.textAlign,
+      color: layerProps.color ?? DEFAULT_TEXT_PROPS.color,
+      lineHeight: layerProps.lineHeight ?? DEFAULT_TEXT_PROPS.lineHeight,
+      letterSpacing: layerProps.letterSpacing ?? DEFAULT_TEXT_PROPS.letterSpacing,
+      textDecoration: layerProps.textDecoration ?? DEFAULT_TEXT_PROPS.textDecoration,
     };
 
-    console.log('[useTextState] Created editor-managed text layer:', newLayer);
+    console.log('[useTextState] ✅ Created text layer:', { id: newLayer.id, text: newLayer.text, x: newLayer.x, y: newLayer.y });
 
+    // Add to the appropriate side using functional update
     if (side === 'front') {
-      setFrontTextLayers(prev => [...prev, newLayer]);
+      setFrontTextLayers(prev => {
+        const updated = [...prev, newLayer];
+        console.log('[useTextState] Front layers updated, count:', updated.length);
+        return updated;
+      });
     } else {
-      setBackTextLayers(prev => [...prev, newLayer]);
+      setBackTextLayers(prev => {
+        const updated = [...prev, newLayer];
+        console.log('[useTextState] Back layers updated, count:', updated.length);
+        return updated;
+      });
     }
 
     return newLayer;

@@ -204,93 +204,126 @@ const CanvasDesignStudio = ({
     switchTextSide(activeSide);
   }, [activeSide, switchTextSide]);
 
-  // Track if we've restored text layers to prevent re-restoring
-  const [hasRestoredTextLayers, setHasRestoredTextLayers] = React.useState(false);
+  // Track if we've restored text layers using a ref to avoid stale closure issues
+  const hasRestoredTextLayersRef = React.useRef(false);
+  // Also keep state version for triggering re-renders after restoration
+  const [textRestorationComplete, setTextRestorationComplete] = React.useState(false);
 
   // Debug: Log text state on every render to track text layer restoration
   console.log('[CanvasDesignStudio] TEXT STATE DEBUG:', {
     currentTextLayersCount: currentTextLayers?.length || 0,
-    hasRestoredTextLayers,
+    frontTextLayersCount: frontTextLayers?.length || 0,
+    backTextLayersCount: backTextLayers?.length || 0,
+    hasRestoredTextLayers: hasRestoredTextLayersRef.current,
+    textRestorationComplete,
     initialFrontTextLayersCount: initialFrontTextLayers?.length || 0,
     initialBackTextLayersCount: initialBackTextLayers?.length || 0,
     activeSide,
     isEditMode,
+    cardPresetWidth: cardPreset?.width,
   });
 
   // Restore initial text layers when editing from cart
   // CRITICAL: This must recreate text layers as editor-managed objects using addTextLayerToSide
-  // This ensures each text layer is properly registered in the editor store and behaves like newly added text
   React.useEffect(() => {
-    console.log('[CanvasDesignStudio] Text restoration effect running:', {
-      hasRestoredTextLayers,
-      initialFrontTextLayersLength: initialFrontTextLayers?.length,
-      initialBackTextLayersLength: initialBackTextLayers?.length,
-      currentFrontTextLayersLength: frontTextLayers?.length,
-      currentBackTextLayersLength: backTextLayers?.length,
-      cardPresetReady: !!cardPreset?.width,
+    // Use ref to prevent multiple restorations (avoids stale closure issues with useState)
+    if (hasRestoredTextLayersRef.current) {
+      console.log('[CanvasDesignStudio] Text restoration - already completed, skipping');
+      return;
+    }
+
+    // Check if we have text layers to restore
+    const hasFrontText = Array.isArray(initialFrontTextLayers) && initialFrontTextLayers.length > 0;
+    const hasBackText = Array.isArray(initialBackTextLayers) && initialBackTextLayers.length > 0;
+
+    if (!hasFrontText && !hasBackText) {
+      console.log('[CanvasDesignStudio] Text restoration - no text layers to restore');
+      return;
+    }
+
+    // Wait for cardPreset to be ready
+    if (!cardPreset?.width) {
+      console.log('[CanvasDesignStudio] Text restoration - waiting for cardPreset...');
+      return;
+    }
+
+    console.log('[CanvasDesignStudio] ✅ STARTING TEXT RESTORATION:', {
+      frontCount: initialFrontTextLayers?.length || 0,
+      backCount: initialBackTextLayers?.length || 0,
+      cardPresetWidth: cardPreset.width,
     });
 
-    // Only restore once
-    if (hasRestoredTextLayers) {
-      console.log('[CanvasDesignStudio] Skipping restoration - already restored');
-      return;
-    }
+    // Mark as restored IMMEDIATELY using ref (prevents race conditions)
+    hasRestoredTextLayersRef.current = true;
 
-    // Wait for cardPreset to be ready (needed for proper layer positioning)
-    if (!cardPreset?.width) {
-      console.log('[CanvasDesignStudio] Waiting for cardPreset to be ready...');
-      return;
-    }
+    // Clear existing text layers first
+    clearAllText();
 
-    const hasFrontText = initialFrontTextLayers && initialFrontTextLayers.length > 0;
-    const hasBackText = initialBackTextLayers && initialBackTextLayers.length > 0;
+    // SYNCHRONOUSLY restore text layers after a microtask to let clearAllText settle
+    // Using Promise.resolve().then() instead of setTimeout for faster, more reliable timing
+    Promise.resolve().then(() => {
+      console.log('[CanvasDesignStudio] Restoring front text layers...');
 
-    console.log('[CanvasDesignStudio] Text check:', { hasFrontText, hasBackText });
-
-    if (hasFrontText || hasBackText) {
-      console.log('[CanvasDesignStudio] ✅ RESTORING initial text layers:', {
-        frontCount: initialFrontTextLayers?.length || 0,
-        backCount: initialBackTextLayers?.length || 0,
-        frontLayers: initialFrontTextLayers,
-        backLayers: initialBackTextLayers,
-      });
-
-      // Mark as restored FIRST to prevent re-entry
-      setHasRestoredTextLayers(true);
-
-      // STEP 1: Clear any existing text layers to ensure clean state
-      console.log('[CanvasDesignStudio] Step 1: Clearing existing text layers...');
-      clearAllText();
-
-      // STEP 2: Recreate each text layer using addTextLayerToSide
-      // Use a longer delay to ensure clearAllText has completed
-      setTimeout(() => {
-        console.log('[CanvasDesignStudio] Step 2: Recreating text layers using addTextLayerToSide...');
-
-        // Recreate FRONT text layers
-        if (initialFrontTextLayers && initialFrontTextLayers.length > 0) {
-          console.log('[CanvasDesignStudio] Recreating', initialFrontTextLayers.length, 'FRONT text layers...');
-          initialFrontTextLayers.forEach((layer, index) => {
-            console.log(`[CanvasDesignStudio] Creating front layer ${index + 1}:`, layer);
-            addTextLayerToSide('front', layer);
+      // Restore FRONT text layers
+      if (hasFrontText) {
+        initialFrontTextLayers.forEach((layer, index) => {
+          console.log(`[CanvasDesignStudio] Adding front layer ${index + 1}:`, layer.text, layer.id);
+          addTextLayerToSide('front', {
+            ...layer,
+            // Ensure all required properties are present
+            id: layer.id,
+            text: layer.text || 'Text',
+            x: layer.x,
+            y: layer.y,
+            width: layer.width || 200,
+            height: layer.height || 40,
+            rotation: layer.rotation || 0,
+            fontFamily: layer.fontFamily || 'Arial',
+            fontSize: layer.fontSize || 24,
+            fontWeight: layer.fontWeight || 'normal',
+            fontStyle: layer.fontStyle || 'normal',
+            textAlign: layer.textAlign || 'left',
+            color: layer.color || '#000000',
+            lineHeight: layer.lineHeight || 1.2,
+            letterSpacing: layer.letterSpacing || 0,
+            textDecoration: layer.textDecoration || 'none',
           });
-        }
+        });
+      }
 
-        // Recreate BACK text layers
-        if (initialBackTextLayers && initialBackTextLayers.length > 0) {
-          console.log('[CanvasDesignStudio] Recreating', initialBackTextLayers.length, 'BACK text layers...');
-          initialBackTextLayers.forEach((layer, index) => {
-            console.log(`[CanvasDesignStudio] Creating back layer ${index + 1}:`, layer);
-            addTextLayerToSide('back', layer);
+      // Restore BACK text layers
+      if (hasBackText) {
+        console.log('[CanvasDesignStudio] Restoring back text layers...');
+        initialBackTextLayers.forEach((layer, index) => {
+          console.log(`[CanvasDesignStudio] Adding back layer ${index + 1}:`, layer.text, layer.id);
+          addTextLayerToSide('back', {
+            ...layer,
+            id: layer.id,
+            text: layer.text || 'Text',
+            x: layer.x,
+            y: layer.y,
+            width: layer.width || 200,
+            height: layer.height || 40,
+            rotation: layer.rotation || 0,
+            fontFamily: layer.fontFamily || 'Arial',
+            fontSize: layer.fontSize || 24,
+            fontWeight: layer.fontWeight || 'normal',
+            fontStyle: layer.fontStyle || 'normal',
+            textAlign: layer.textAlign || 'left',
+            color: layer.color || '#000000',
+            lineHeight: layer.lineHeight || 1.2,
+            letterSpacing: layer.letterSpacing || 0,
+            textDecoration: layer.textDecoration || 'none',
           });
-        }
+        });
+      }
 
-        console.log('[CanvasDesignStudio] ✅ Text layer restoration complete!');
-      }, 150);
-    } else {
-      console.log('[CanvasDesignStudio] ⚠️ No text layers to restore');
-    }
-  }, [initialFrontTextLayers, initialBackTextLayers, hasRestoredTextLayers, addTextLayerToSide, clearAllText, cardPreset]);
+      // Mark restoration complete to trigger re-render
+      setTextRestorationComplete(true);
+      console.log('[CanvasDesignStudio] ✅ TEXT RESTORATION COMPLETE');
+    });
+
+  }, [initialFrontTextLayers, initialBackTextLayers, cardPreset, addTextLayerToSide, clearAllText]);
 
   // Handle text click
   const handleTextClick = (textId) => {

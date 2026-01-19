@@ -197,8 +197,12 @@ const CanvasArea = ({
           )}
 
           {/* Text Layers */}
-          {console.log('[CanvasArea] Rendering text layers:', textLayers?.length || 0, textLayers)}
-          {textLayers.map((textLayer) => {
+          {console.log('[CanvasArea] Rendering text layers:', {
+            count: textLayers?.length || 0,
+            layers: textLayers,
+            isArray: Array.isArray(textLayers),
+          })}
+          {Array.isArray(textLayers) && textLayers.map((textLayer) => {
             const isTextSelected = selectedTextId === textLayer.id;
             return (
               <div
