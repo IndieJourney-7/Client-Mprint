@@ -145,44 +145,67 @@ const ProductConfigurationFlow = () => {
     }
   }, [location.state, product, editModeInitialized]);
 
+  // Track if we've handled the TemplatePreview navigation
+  const [templatePreviewHandled, setTemplatePreviewHandled] = useState(false);
+
   // Handle coming from TemplatePreview with showDesignStudio flag
   useEffect(() => {
-    if (location.state?.showDesignStudio && location.state?.templateData && product && !designId) {
-      console.log('[ProductConfigurationFlow] Coming from TemplatePreview with template data:', location.state.templateData);
+    // Skip if already handled or missing required data
+    if (templatePreviewHandled) return;
+    if (!location.state?.showDesignStudio) return;
+    if (!location.state?.templateData) return;
+    if (!product) return;
+    if (designId) return; // Already have a design
 
-      // Restore selected attributes if passed
-      if (location.state.selectedAttributes) {
-        setSelectedAttributes(prev => ({
-          ...prev,
-          ...location.state.selectedAttributes
-        }));
-      }
+    console.log('[ProductConfigurationFlow] ✅ Coming from TemplatePreview with template data:', location.state.templateData);
 
-      // Set template data
-      setTemplateData(location.state.templateData);
+    // Mark as handled to prevent re-running
+    setTemplatePreviewHandled(true);
 
-      // CRITICAL: Create design on server BEFORE entering design studio
-      // This ensures we have a design_id that can be linked to the cart later
-      const initDesignAndOpenStudio = async () => {
-        console.log('[ProductConfigurationFlow] Creating design before opening studio (from TemplatePreview)');
-        const createdDesignId = await createDesignOnServer(
-          'customized',
-          location.state.templateData.template?.id,
-          location.state.templateData.colorVariant?.id
-        );
-        if (createdDesignId) {
-          console.log('[ProductConfigurationFlow] Design created:', createdDesignId, '- opening design studio');
+    // Restore selected attributes if passed
+    if (location.state.selectedAttributes) {
+      setSelectedAttributes(prev => ({
+        ...prev,
+        ...location.state.selectedAttributes
+      }));
+    }
+
+    // Set template data
+    setTemplateData(location.state.templateData);
+
+    // CRITICAL: Create design on server BEFORE entering design studio
+    const initDesignAndOpenStudio = async () => {
+      console.log('[ProductConfigurationFlow] Creating design before opening studio (from TemplatePreview)');
+
+      try {
+        await api.get("/sanctum/csrf-cookie");
+
+        const response = await api.post("/api/designs", {
+          product_id: product.id,
+          orientation: location.state.selectedAttributes?.orientation || selectedAttributes.orientation || "horizontal",
+          name: `${product.name} Design`,
+          design_type: 'customized',
+          template_id: location.state.templateData.template?.id,
+          color_variant_id: location.state.templateData.colorVariant?.id,
+        });
+
+        if (response.data?.success && response.data?.data?.id) {
+          const newDesignId = response.data.data.id;
+          console.log('[ProductConfigurationFlow] ✅ Design created:', newDesignId, '- opening design studio');
+          setDesignId(newDesignId);
           setCurrentStep(2);
           setShowDesignStudio(true);
         } else {
-          console.error('[ProductConfigurationFlow] Failed to create design');
+          console.error('[ProductConfigurationFlow] Failed to create design - response invalid');
         }
-      };
+      } catch (err) {
+        console.error('[ProductConfigurationFlow] Error creating design:', err);
+      }
+    };
 
-      setTimeout(initDesignAndOpenStudio, 100);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.state, product]);
+    // Small delay to ensure state is settled
+    setTimeout(initDesignAndOpenStudio, 50);
+  }, [location.state, product, designId, templatePreviewHandled, selectedAttributes.orientation]);
 
   // Fetch design data when editing existing design
   // This effect is triggered when isEditFromCart is true and designId is set
