@@ -10,7 +10,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { ZOOM_CONFIG } from './constants';
 import { generateCompleteCardPreview } from './utils/imageHelpers';
-import { useImageState, useCanvasDrag, useUploads, useDesignPersistence } from './hooks';
+import { useImageState, useCanvasDrag, useUploads, useDesignPersistence, useTextState } from './hooks';
 import {
   Header,
   Footer,
@@ -38,16 +38,38 @@ const CanvasDesignStudio = ({
   initialBackState = null,
   initialFrontImage = null,
   initialBackImage = null,
+  // Text layers to restore when editing from cart
+  initialFrontTextLayers = null,
+  initialBackTextLayers = null,
   isEditMode = false,
   className = '',
+  // Template props (when coming from TemplatePreview)
+  templateData = null, // { template, colorVariant }
 }) => {
-  // Debug log on mount
-  console.log('CanvasDesignStudio mounted with props:', {
+  // CRITICAL: Determine if we should skip loading the preview image
+  // We skip the preview image when:
+  // 1. It's a template-based design (preview has text baked in from template)
+  // 2. We have text layers to restore (preview has user's text baked in)
+  // In both cases, we load the original template/background and restore text layers separately
+  const isTemplateBasedDesign = !!(templateData?.template);
+  const hasTextLayersToRestore = (initialFrontTextLayers?.length > 0) || (initialBackTextLayers?.length > 0);
+  const shouldSkipPreviewImage = isTemplateBasedDesign || hasTextLayersToRestore;
+
+  // Debug log on mount and prop changes
+  console.log('[CanvasDesignStudio] Props received:', {
     designId,
-    initialFrontState,
-    initialBackState,
-    initialFrontImage,
-    initialBackImage,
+    isEditMode,
+    isTemplateBasedDesign,
+    hasTextLayersToRestore,
+    shouldSkipPreviewImage,
+    initialFrontState: initialFrontState ? 'present' : 'null',
+    initialBackState: initialBackState ? 'present' : 'null',
+    initialFrontImage: initialFrontImage ? initialFrontImage.substring(0, 50) + '...' : 'null',
+    initialBackImage: initialBackImage ? initialBackImage.substring(0, 50) + '...' : 'null',
+    initialFrontTextLayers: initialFrontTextLayers?.length || 0,
+    initialBackTextLayers: initialBackTextLayers?.length || 0,
+    templateData: templateData ? 'present' : 'null',
+    templateFrontUrl: templateData?.template?.front_template_url || templateData?.colorVariant?.front_template_url || 'null',
     orientation,
     printDimensions,
     cornerRadius,
@@ -59,6 +81,15 @@ const CanvasDesignStudio = ({
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  // Template state
+  const [currentTemplate, setCurrentTemplate] = useState(templateData?.template || null);
+  const [selectedColorVariant, setSelectedColorVariant] = useState(templateData?.colorVariant || null);
+
+  // Real-time preview state (includes text layers rendered)
+  const [frontPreview, setFrontPreview] = useState(null);
+  const [backPreview, setBackPreview] = useState(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
   // Refs
   const canvasRef = useRef(null);
@@ -80,8 +111,8 @@ const CanvasDesignStudio = ({
     frontStatus,
     backStatus,
     currentStatus,
-    hasAnyDesign,
-    hasBothDesigns,
+    hasAnyDesign: hasAnyImageDesign,
+    hasBothDesigns: hasBothImageDesigns,
     setFrontImage,
     setBackImage,
     setIsSelected,
@@ -97,14 +128,18 @@ const CanvasDesignStudio = ({
   } = imageState;
 
   // Persistence hook
+  // CRITICAL: DON'T load the preview image when we have text layers to restore
+  // The preview image has text BAKED IN - loading it would show duplicate/non-editable text
+  // Instead, we load the original template background and restore text layers as editor objects
   const persistence = useDesignPersistence({
     designId,
     sessionId,
     safeArea,
     initialFrontState,
     initialBackState,
-    initialFrontImage,
-    initialBackImage,
+    // Skip preview image if it has text baked in (template-based OR has text layers)
+    initialFrontImage: shouldSkipPreviewImage ? null : initialFrontImage,
+    initialBackImage: shouldSkipPreviewImage ? null : initialBackImage,
     setFrontImage,
     setBackImage,
   });
@@ -143,6 +178,323 @@ const CanvasDesignStudio = ({
   });
   const { handleMouseDown, getResizeHandles } = drag;
 
+  // Text state hook
+  const textState = useTextState(cardPreset);
+  const {
+    frontTextLayers,
+    backTextLayers,
+    currentTextLayers,
+    selectedTextId,
+    selectedTextLayer,
+    isEditingText,
+    addTextLayer,
+    addTextLayerToSide, // For restoring saved text layers
+    updateTextLayer,
+    removeTextLayer,
+    selectTextLayer,
+    deselectText,
+    switchTextSide,
+    moveTextLayer,
+    setIsEditingText,
+    clearAllText,
+  } = textState;
+
+  // Sync text side with active canvas side
+  React.useEffect(() => {
+    switchTextSide(activeSide);
+  }, [activeSide, switchTextSide]);
+
+  // Track if we've restored text layers to prevent re-restoring
+  const [hasRestoredTextLayers, setHasRestoredTextLayers] = React.useState(false);
+
+  // Debug: Log text state on every render to track text layer restoration
+  console.log('[CanvasDesignStudio] TEXT STATE DEBUG:', {
+    currentTextLayersCount: currentTextLayers?.length || 0,
+    hasRestoredTextLayers,
+    initialFrontTextLayersCount: initialFrontTextLayers?.length || 0,
+    initialBackTextLayersCount: initialBackTextLayers?.length || 0,
+    activeSide,
+    isEditMode,
+  });
+
+  // Restore initial text layers when editing from cart
+  // CRITICAL: This must recreate text layers as editor-managed objects using addTextLayerToSide
+  // This ensures each text layer is properly registered in the editor store and behaves like newly added text
+  React.useEffect(() => {
+    console.log('[CanvasDesignStudio] Text restoration effect running:', {
+      hasRestoredTextLayers,
+      initialFrontTextLayersLength: initialFrontTextLayers?.length,
+      initialBackTextLayersLength: initialBackTextLayers?.length,
+      currentFrontTextLayersLength: frontTextLayers?.length,
+      currentBackTextLayersLength: backTextLayers?.length,
+      cardPresetReady: !!cardPreset?.width,
+    });
+
+    // Only restore once
+    if (hasRestoredTextLayers) {
+      console.log('[CanvasDesignStudio] Skipping restoration - already restored');
+      return;
+    }
+
+    // Wait for cardPreset to be ready (needed for proper layer positioning)
+    if (!cardPreset?.width) {
+      console.log('[CanvasDesignStudio] Waiting for cardPreset to be ready...');
+      return;
+    }
+
+    const hasFrontText = initialFrontTextLayers && initialFrontTextLayers.length > 0;
+    const hasBackText = initialBackTextLayers && initialBackTextLayers.length > 0;
+
+    console.log('[CanvasDesignStudio] Text check:', { hasFrontText, hasBackText });
+
+    if (hasFrontText || hasBackText) {
+      console.log('[CanvasDesignStudio] ✅ RESTORING initial text layers:', {
+        frontCount: initialFrontTextLayers?.length || 0,
+        backCount: initialBackTextLayers?.length || 0,
+        frontLayers: initialFrontTextLayers,
+        backLayers: initialBackTextLayers,
+      });
+
+      // Mark as restored FIRST to prevent re-entry
+      setHasRestoredTextLayers(true);
+
+      // STEP 1: Clear any existing text layers to ensure clean state
+      console.log('[CanvasDesignStudio] Step 1: Clearing existing text layers...');
+      clearAllText();
+
+      // STEP 2: Recreate each text layer using addTextLayerToSide
+      // Use a longer delay to ensure clearAllText has completed
+      setTimeout(() => {
+        console.log('[CanvasDesignStudio] Step 2: Recreating text layers using addTextLayerToSide...');
+
+        // Recreate FRONT text layers
+        if (initialFrontTextLayers && initialFrontTextLayers.length > 0) {
+          console.log('[CanvasDesignStudio] Recreating', initialFrontTextLayers.length, 'FRONT text layers...');
+          initialFrontTextLayers.forEach((layer, index) => {
+            console.log(`[CanvasDesignStudio] Creating front layer ${index + 1}:`, layer);
+            addTextLayerToSide('front', layer);
+          });
+        }
+
+        // Recreate BACK text layers
+        if (initialBackTextLayers && initialBackTextLayers.length > 0) {
+          console.log('[CanvasDesignStudio] Recreating', initialBackTextLayers.length, 'BACK text layers...');
+          initialBackTextLayers.forEach((layer, index) => {
+            console.log(`[CanvasDesignStudio] Creating back layer ${index + 1}:`, layer);
+            addTextLayerToSide('back', layer);
+          });
+        }
+
+        console.log('[CanvasDesignStudio] ✅ Text layer restoration complete!');
+      }, 150);
+    } else {
+      console.log('[CanvasDesignStudio] ⚠️ No text layers to restore');
+    }
+  }, [initialFrontTextLayers, initialBackTextLayers, hasRestoredTextLayers, addTextLayerToSide, clearAllText, cardPreset]);
+
+  // Handle text click
+  const handleTextClick = (textId) => {
+    selectTextLayer(textId);
+    setIsSelected(false); // Deselect image when text is selected
+  };
+
+  // Handle text mouse down for dragging
+  const handleTextMouseDown = (e, textId) => {
+    selectTextLayer(textId);
+    setIsSelected(false);
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const textLayer = currentTextLayers.find(t => t.id === textId);
+    if (!textLayer) return;
+
+    const startLayerX = textLayer.x;
+    const startLayerY = textLayer.y;
+
+    const handleMouseMove = (moveEvent) => {
+      const dx = (moveEvent.clientX - startX) / (canvasZoom / 100);
+      const dy = (moveEvent.clientY - startY) / (canvasZoom / 100);
+      moveTextLayer(textId, startLayerX + dx, startLayerY + dy);
+      setHasUnsavedChanges(true);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  // Handle text double click for inline editing
+  const handleTextDoubleClick = (textId) => {
+    selectTextLayer(textId);
+    setIsEditingText(true);
+  };
+
+  // Handle template application
+  const handleApplyTemplate = useCallback((template, colorVariant) => {
+    setCurrentTemplate(template);
+    setSelectedColorVariant(colorVariant);
+
+    // Get the image URL from template or color variant
+    const frontImageUrl = colorVariant?.front_template_url || template?.front_template_url || template?.preview_url;
+    const backImageUrl = colorVariant?.back_template_url || template?.back_template_url;
+
+    // Load template images as background
+    if (frontImageUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const imageData = {
+          src: frontImageUrl,
+          x: cardPreset.width / 2,
+          y: cardPreset.height / 2,
+          width: cardPreset.width,
+          height: cardPreset.height,
+          rotation: 0,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+        };
+        setImageForSide('front', imageData);
+      };
+      img.src = frontImageUrl;
+    }
+
+    if (backImageUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const imageData = {
+          src: backImageUrl,
+          x: cardPreset.width / 2,
+          y: cardPreset.height / 2,
+          width: cardPreset.width,
+          height: cardPreset.height,
+          rotation: 0,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+        };
+        setImageForSide('back', imageData);
+      };
+      img.src = backImageUrl;
+    }
+
+    setHasUnsavedChanges(true);
+  }, [cardPreset, setImageForSide, setHasUnsavedChanges]);
+
+  // Handle color variant selection
+  const handleSelectColorVariant = useCallback((colorVariant) => {
+    setSelectedColorVariant(colorVariant);
+    if (currentTemplate) {
+      handleApplyTemplate(currentTemplate, colorVariant);
+    }
+  }, [currentTemplate, handleApplyTemplate]);
+
+  // Track if we've loaded template to prevent re-loading
+  const [hasLoadedTemplate, setHasLoadedTemplate] = React.useState(false);
+
+  // Auto-load template images when templateData becomes available
+  // This handles both: 1) coming from TemplatePreview, 2) editing from Cart with template
+  React.useEffect(() => {
+    console.log('[CanvasDesignStudio] Template auto-load effect check:', {
+      hasLoadedTemplate,
+      hasFrontImage: !!frontImage,
+      hasBackImage: !!backImage,
+      hasTemplateData: !!templateData,
+      cardPresetWidth: cardPreset.width,
+    });
+
+    // Skip if we already loaded template
+    if (hasLoadedTemplate) {
+      console.log('[CanvasDesignStudio] Skipping template load - already loaded');
+      return;
+    }
+    // Skip if we already have images loaded
+    if (frontImage || backImage) {
+      console.log('[CanvasDesignStudio] Skipping template load - images already exist');
+      return;
+    }
+    // Need templateData and cardPreset to load template
+    if (!templateData || !cardPreset.width) {
+      console.log('[CanvasDesignStudio] Skipping template load - missing templateData or cardPreset');
+      return;
+    }
+
+    console.log('[CanvasDesignStudio] ✅ Auto-loading template from templateData:', templateData);
+    const { template, colorVariant } = templateData;
+    if (template) {
+      // Use setTimeout to ensure cardPreset is properly initialized
+      setTimeout(() => {
+        console.log('[CanvasDesignStudio] ✅ Calling handleApplyTemplate...');
+        handleApplyTemplate(template, colorVariant);
+        setHasLoadedTemplate(true);
+      }, 100);
+    }
+  }, [templateData, cardPreset.width, hasLoadedTemplate, frontImage, backImage, handleApplyTemplate]);
+
+  // Compute hasAnyDesign and hasBothDesigns including text layers
+  const { front: frontTextLayersAll, back: backTextLayersAll } = textState.getAllTextLayers();
+  const hasFrontContent = !!(frontImage || frontTextLayersAll.length > 0);
+  const hasBackContent = !!(backImage || backTextLayersAll.length > 0);
+  const hasAnyDesign = hasFrontContent || hasBackContent || hasAnyImageDesign;
+  const hasBothDesigns = (hasFrontContent && hasBackContent) || hasBothImageDesigns;
+
+  // Real-time preview generation with debouncing
+  // This generates previews whenever images or text change
+  React.useEffect(() => {
+    // Debounce timer ref
+    let debounceTimer;
+
+    const generatePreviews = async () => {
+      if (!exportCanvasRef.current || !cardPreset.width) return;
+
+      setIsGeneratingPreview(true);
+
+      try {
+        // Generate front preview
+        if (frontImage || frontTextLayersAll.length > 0) {
+          const preview = await generateCompleteCardPreview(
+            frontImage,
+            cardPreset,
+            exportCanvasRef.current,
+            cornerRadius,
+            frontTextLayersAll
+          );
+          setFrontPreview(preview);
+        } else {
+          setFrontPreview(null);
+        }
+
+        // Generate back preview
+        if (backImage || backTextLayersAll.length > 0) {
+          const preview = await generateCompleteCardPreview(
+            backImage,
+            cardPreset,
+            exportCanvasRef.current,
+            cornerRadius,
+            backTextLayersAll
+          );
+          setBackPreview(preview);
+        } else {
+          setBackPreview(null);
+        }
+      } catch (error) {
+        console.error('[CanvasDesignStudio] Error generating previews:', error);
+      } finally {
+        setIsGeneratingPreview(false);
+      }
+    };
+
+    // Debounce preview generation (150ms delay for text typing, immediate for image changes)
+    debounceTimer = setTimeout(generatePreviews, 150);
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [frontImage, backImage, frontTextLayersAll, backTextLayersAll, cardPreset, cornerRadius]);
+
   // Notify parent of design changes with print-ready previews (safe area only)
   const notifyDesignChange = useCallback(async () => {
     console.log('[CanvasDesignStudio] Generating previews with:', {
@@ -172,13 +524,16 @@ const CanvasDesignStudio = ({
       backImageSrcStart: backImage?.src?.substring(0, 100),
     });
 
+    // Get text layers for each side
+    const { front: frontTextLayers, back: backTextLayers } = textState.getAllTextLayers();
+
     // Generate complete card previews (full card with white margins - matches what user sees in canvas)
-    const frontPreview = frontImage
-      ? await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius)
+    const frontPreview = frontImage || frontTextLayers.length > 0
+      ? await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius, frontTextLayers)
       : null;
 
-    const backPreview = backImage
-      ? await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius)
+    const backPreview = backImage || backTextLayers.length > 0
+      ? await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius, backTextLayers)
       : null;
 
     console.log('[CanvasDesignStudio] Generated previews:', {
@@ -269,12 +624,15 @@ const CanvasDesignStudio = ({
     setSaveMessage('');
     
     try {
+      // Get text layers for each side
+      const { front: frontTextLayersForSave, back: backTextLayersForSave } = textState.getAllTextLayers();
+
       // Generate complete card previews (full card with white margins - matches what user sees in canvas)
-      const frontPrintReady = frontImage
-        ? await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius)
+      const frontPrintReady = frontImage || frontTextLayersForSave.length > 0
+        ? await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius, frontTextLayersForSave)
         : null;
-      const backPrintReady = backImage
-        ? await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius)
+      const backPrintReady = backImage || backTextLayersForSave.length > 0
+        ? await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius, backTextLayersForSave)
         : null;
       
       const designData = {
@@ -335,9 +693,12 @@ const CanvasDesignStudio = ({
       }
     }
 
-    // Save canvas state
+    // Get text layers for saving
+    const { front: frontTextLayersToSave, back: backTextLayersToSave } = textState.getAllTextLayers();
+
+    // Save canvas state including text layers for complete state restoration during edit
     try {
-      await saveCanvasStateToServer(frontImage, backImage);
+      await saveCanvasStateToServer(frontImage, backImage, frontTextLayersToSave, backTextLayersToSave);
     } catch (error) {
       console.error('Failed to save canvas state, but continuing:', error);
     }
@@ -361,15 +722,18 @@ const CanvasDesignStudio = ({
       cardPresetHeight: cardPreset.height,
     });
 
+    // Get text layers for preview generation
+    const { front: frontTextLayersForNext, back: backTextLayersForNext } = textState.getAllTextLayers();
+
     try {
-      if (frontImage) {
+      if (frontImage || frontTextLayersForNext.length > 0) {
         console.log('[handleNext] Calling generateCompleteCardPreview for FRONT...');
-        frontPreview = await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius);
+        frontPreview = await generateCompleteCardPreview(frontImage, cardPreset, exportCanvasRef.current, cornerRadius, frontTextLayersForNext);
         console.log('[handleNext] Front preview generated, length:', frontPreview?.length);
       }
-      if (backImage) {
+      if (backImage || backTextLayersForNext.length > 0) {
         console.log('[handleNext] Calling generateCompleteCardPreview for BACK...');
-        backPreview = await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius);
+        backPreview = await generateCompleteCardPreview(backImage, cardPreset, exportCanvasRef.current, cornerRadius, backTextLayersForNext);
         console.log('[handleNext] Back preview generated, length:', backPreview?.length);
       }
     } catch (error) {
@@ -378,23 +742,36 @@ const CanvasDesignStudio = ({
 
     setShowReviewModal(false);
 
+    // Check if we have content (image or text) on each side
+    const hasFrontContentForNext = !!(frontImage || frontTextLayersForNext.length > 0);
+    const hasBackContentForNext = !!(backImage || backTextLayersForNext.length > 0);
+
     const designData = {
-      front: frontImage
+      front: hasFrontContentForNext
         ? {
-            preview: frontPreview || frontImage.src,
+            preview: frontPreview || frontImage?.src,
             hasContent: true,
             canvasState: frontImage,
+            textLayers: frontTextLayersForNext,
           }
-        : { preview: null, hasContent: false },
-      back: backImage
+        : { preview: null, hasContent: false, textLayers: [] },
+      back: hasBackContentForNext
         ? {
-            preview: backPreview || backImage.src,
+            preview: backPreview || backImage?.src,
             hasContent: true,
             canvasState: backImage,
+            textLayers: backTextLayersForNext,
           }
-        : { preview: null, hasContent: false },
+        : { preview: null, hasContent: false, textLayers: [] },
       designId,
       showSuccessToast: isEditMode,
+      // Include full design metadata for cart
+      orientation,
+      shape: cornerRadius > 0 ? 'rounded' : 'rectangle',
+      cardDimensions: {
+        width: safeArea.width,
+        height: safeArea.height,
+      },
     };
 
     console.log('Calling onNext with design data:', designData);
@@ -469,6 +846,19 @@ const CanvasDesignStudio = ({
           onFitToSafeArea={fitToSafeArea}
           onFillCanvas={fillCanvas}
           onRemoveImage={removeImage}
+          // Text props
+          currentTextLayers={currentTextLayers}
+          selectedTextLayer={selectedTextLayer}
+          onAddText={addTextLayer}
+          onUpdateText={updateTextLayer}
+          onRemoveText={removeTextLayer}
+          onSelectText={selectTextLayer}
+          // Template props
+          currentTemplate={currentTemplate}
+          selectedColorVariant={selectedColorVariant}
+          onApplyTemplate={handleApplyTemplate}
+          onSelectColorVariant={handleSelectColorVariant}
+          productId={productId}
         />
 
         {/* Canvas area */}
@@ -483,7 +873,10 @@ const CanvasDesignStudio = ({
           uploading={uploading}
           cornerRadius={cornerRadius}
           onFileSelect={handleFileSelect}
-          onCanvasClick={handleCanvasClick}
+          onCanvasClick={(e) => {
+            handleCanvasClick(e);
+            deselectText(); // Also deselect text when clicking canvas
+          }}
           onImageClick={handleImageClick}
           onImageMouseDown={handleImageMouseDown}
           onDuplicateImage={duplicateImage}
@@ -491,6 +884,13 @@ const CanvasDesignStudio = ({
           handleMouseDown={handleMouseDown}
           getResizeHandles={getResizeHandles}
           fileInputRef={fileInputRef}
+          // Text props
+          textLayers={currentTextLayers}
+          selectedTextId={selectedTextId}
+          onTextClick={handleTextClick}
+          onTextMouseDown={handleTextMouseDown}
+          onTextDoubleClick={handleTextDoubleClick}
+          isEditingText={isEditingText}
         />
 
         {/* Side panel */}
@@ -501,6 +901,12 @@ const CanvasDesignStudio = ({
           backStatus={backStatus}
           activeSide={activeSide}
           onSwitchSide={switchSide}
+          // Real-time previews with text
+          frontPreview={frontPreview}
+          backPreview={backPreview}
+          isGeneratingPreview={isGeneratingPreview}
+          hasFrontContent={hasFrontContent}
+          hasBackContent={hasBackContent}
         />
       </div>
 
@@ -511,6 +917,8 @@ const CanvasDesignStudio = ({
       <ReviewModal
         isOpen={showReviewModal}
         onClose={() => setShowReviewModal(false)}
+        frontPreview={frontPreview}
+        backPreview={backPreview}
         frontImage={frontImage}
         backImage={backImage}
         safeArea={safeArea}

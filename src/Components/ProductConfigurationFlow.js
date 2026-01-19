@@ -17,7 +17,6 @@ import api from "../api/api";
 import { useFavorites } from "../context/FavoritesContext";
 import CanvasDesignStudio from "./CanvasDesign";
 import useWorkSession from "../hooks/useWorkSession";
-import TemplateBrowser from "./TemplateBrowser";
 
 // Step indicators
 const STEPS = [
@@ -54,6 +53,7 @@ const ProductConfigurationFlow = () => {
   const [designCreating, setDesignCreating] = useState(false);
   const [editingDesignData, setEditingDesignData] = useState(null); // Data for editing existing design
   const [loadingDesignData, setLoadingDesignData] = useState(false);
+  const [templateData, setTemplateData] = useState(location.state?.templateData || null); // Template data when coming from TemplatePreview
 
   // Clear previews when orientation or shape changes (canvas will remount)
   React.useEffect(() => {
@@ -114,34 +114,91 @@ const ProductConfigurationFlow = () => {
     }
   }, [sessionData, hasRestoredSession]);
 
+  // Track if we're in edit mode from cart
+  const [isEditFromCart, setIsEditFromCart] = useState(false);
+  const [editModeInitialized, setEditModeInitialized] = useState(false);
+
   // Check if editing from cart (restore saved design and orientation)
+  // IMPORTANT: We set the designId here but DON'T open the design studio yet
+  // The design studio will open AFTER the design data is fetched (see useEffect below)
   useEffect(() => {
-    if (location.state?.editDesignId && product) {
+    if (location.state?.editDesignId && product && !editModeInitialized) {
+      console.log('[ProductConfigurationFlow] Edit from Cart detected, setting designId:', location.state.editDesignId);
+
+      // Clear any previous editing data when starting a new edit
+      setEditingDesignData(null);
+      setShowDesignStudio(false);
+
+      // Set the design ID for fetching
       setDesignId(location.state.editDesignId);
+      setIsEditFromCart(true);
+      setEditModeInitialized(true);
 
       // Restore saved attributes (orientation, quantity, etc.) from cart
       if (location.state.selectedAttributes) {
         setSelectedAttributes({
           ...location.state.selectedAttributes
         });
+      }
+      // NOTE: We don't open the design studio here anymore
+      // It will open after fetchDesignData completes (see editingDesignData useEffect)
+    }
+  }, [location.state, product, editModeInitialized]);
 
-        // Wait for next tick to ensure state is updated, then open design studio
-        setTimeout(() => {
+  // Handle coming from TemplatePreview with showDesignStudio flag
+  useEffect(() => {
+    if (location.state?.showDesignStudio && location.state?.templateData && product && !designId) {
+      console.log('[ProductConfigurationFlow] Coming from TemplatePreview with template data:', location.state.templateData);
+
+      // Restore selected attributes if passed
+      if (location.state.selectedAttributes) {
+        setSelectedAttributes(prev => ({
+          ...prev,
+          ...location.state.selectedAttributes
+        }));
+      }
+
+      // Set template data
+      setTemplateData(location.state.templateData);
+
+      // CRITICAL: Create design on server BEFORE entering design studio
+      // This ensures we have a design_id that can be linked to the cart later
+      const initDesignAndOpenStudio = async () => {
+        console.log('[ProductConfigurationFlow] Creating design before opening studio (from TemplatePreview)');
+        const createdDesignId = await createDesignOnServer(
+          'customized',
+          location.state.templateData.template?.id,
+          location.state.templateData.colorVariant?.id
+        );
+        if (createdDesignId) {
+          console.log('[ProductConfigurationFlow] Design created:', createdDesignId, '- opening design studio');
           setCurrentStep(2);
           setShowDesignStudio(true);
-        }, 0);
-      } else {
-        // No saved attributes, open anyway
-        setCurrentStep(2);
-        setShowDesignStudio(true);
-      }
+        } else {
+          console.error('[ProductConfigurationFlow] Failed to create design');
+        }
+      };
+
+      setTimeout(initDesignAndOpenStudio, 100);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state, product]);
 
   // Fetch design data when editing existing design
+  // This effect is triggered when isEditFromCart is true and designId is set
   useEffect(() => {
     const fetchDesignData = async () => {
-      if (!designId || editingDesignData) return; // Already loaded or no designId
+      // Only fetch if we're in edit mode from cart and have a designId
+      if (!isEditFromCart || !designId) {
+        console.log('[ProductConfigurationFlow] Skipping fetch - not in edit mode or no designId', { isEditFromCart, designId });
+        return;
+      }
+
+      // Skip if we already have the data for this design
+      if (editingDesignData && !loadingDesignData) {
+        console.log('[ProductConfigurationFlow] Design data already loaded');
+        return;
+      }
 
       setLoadingDesignData(true);
       console.log('[ProductConfigurationFlow] Fetching design data for editing:', designId);
@@ -151,16 +208,63 @@ const ProductConfigurationFlow = () => {
 
         if (response.data?.success) {
           const data = response.data.data;
-          console.log('[ProductConfigurationFlow] Design data fetched:', data);
+          console.log('[ProductConfigurationFlow] 🔵 Design data fetched from API:', {
+            hasFrontImage: !!data.front_image_url,
+            hasBackImage: !!data.back_image_url,
+            // CRITICAL: Text layer debugging
+            frontTextLayersCount: data.front_text_layers?.length || 0,
+            backTextLayersCount: data.back_text_layers?.length || 0,
+            frontTextLayersType: typeof data.front_text_layers,
+            backTextLayersType: typeof data.back_text_layers,
+            frontTextLayersIsArray: Array.isArray(data.front_text_layers),
+            backTextLayersIsArray: Array.isArray(data.back_text_layers),
+            // Log actual text layer data for debugging
+            frontTextLayers: data.front_text_layers,
+            backTextLayers: data.back_text_layers,
+            hasTemplateData: !!data.template_data,
+            templateDataKeys: data.template_data ? Object.keys(data.template_data) : [],
+            orientation: data.orientation,
+            selectedShape: data.selected_shape,
+            designType: data.design_type,
+          });
 
-          setEditingDesignData({
+          // Store complete editing data including template info
+          const editData = {
             frontCanvasState: data.front_canvas_state,
             backCanvasState: data.back_canvas_state,
             frontImageUrl: data.front_image_url,
             backImageUrl: data.back_image_url,
-          });
+            // Text layers for restoring text when editing from cart
+            frontTextLayers: data.front_text_layers || [],
+            backTextLayers: data.back_text_layers || [],
+            // Template data for restoring template-based designs
+            templateData: data.template_data || null,
+            // Design metadata
+            designType: data.design_type,
+            orientation: data.orientation,
+            selectedShape: data.selected_shape,
+          };
+
+          // If design has template data, set it for CanvasDesignStudio
+          if (data.template_data) {
+            console.log('[ProductConfigurationFlow] Restoring template data:', data.template_data);
+            setTemplateData(data.template_data);
+          }
+
+          // Restore orientation and shape from saved design
+          if (data.orientation || data.selected_shape) {
+            setSelectedAttributes(prev => ({
+              ...prev,
+              orientation: data.orientation || prev.orientation,
+              shape: data.selected_shape || prev.shape,
+            }));
+          }
+
+          // Set editing data LAST after all other state is updated
+          setEditingDesignData(editData);
+          console.log('[ProductConfigurationFlow] editingDesignData set:', editData);
         } else {
-          console.error('[ProductConfigurationFlow] Failed to fetch design data');
+          console.error('[ProductConfigurationFlow] Failed to fetch design data - API returned failure');
         }
       } catch (error) {
         console.error('[ProductConfigurationFlow] Error fetching design data:', error);
@@ -169,10 +273,31 @@ const ProductConfigurationFlow = () => {
       }
     };
 
-    if (designId) {
-      fetchDesignData();
+    fetchDesignData();
+  }, [isEditFromCart, designId, editingDesignData, loadingDesignData]);
+
+  // Open design studio AFTER design data has been fetched (for Edit from Cart flow)
+  // This ensures the canvas is hydrated with the saved design data
+  // CRITICAL: Only open after editingDesignData is fully populated
+  useEffect(() => {
+    if (isEditFromCart && editingDesignData && !showDesignStudio && !loadingDesignData) {
+      console.log('[ProductConfigurationFlow] ✅ Design data loaded, NOW opening design studio with:', {
+        frontImageUrl: editingDesignData.frontImageUrl ? editingDesignData.frontImageUrl.substring(0, 50) + '...' : 'null',
+        backImageUrl: editingDesignData.backImageUrl ? editingDesignData.backImageUrl.substring(0, 50) + '...' : 'null',
+        frontTextLayersCount: editingDesignData.frontTextLayers?.length || 0,
+        backTextLayersCount: editingDesignData.backTextLayers?.length || 0,
+        hasTemplateData: !!editingDesignData.templateData,
+        frontCanvasState: editingDesignData.frontCanvasState ? 'present' : 'null',
+        backCanvasState: editingDesignData.backCanvasState ? 'present' : 'null',
+      });
+
+      // Small delay to ensure all state updates have propagated
+      setTimeout(() => {
+        setCurrentStep(2);
+        setShowDesignStudio(true);
+      }, 50);
     }
-  }, [designId, editingDesignData]);
+  }, [isEditFromCart, editingDesignData, showDesignStudio, loadingDesignData]);
 
   // Fetch product data
   useEffect(() => {
@@ -353,21 +478,44 @@ const ProductConfigurationFlow = () => {
   };
 
   // Create design on server when entering design studio
-  const createDesignOnServer = async () => {
+  // designType: 'uploaded' | 'customized' | 'blank'
+  const createDesignOnServer = async (designType = 'blank', templateIdParam = null, colorVariantIdParam = null) => {
     if (designId) return designId; // Already created
 
     setDesignCreating(true);
     try {
       await api.get("/sanctum/csrf-cookie");
+
+      // Determine design type based on template data
+      let finalDesignType = designType;
+      let finalTemplateId = templateIdParam;
+      let finalColorVariantId = colorVariantIdParam;
+
+      // If coming from TemplatePreview with template data, mark as 'customized'
+      if (templateData?.template?.id) {
+        finalDesignType = 'customized';
+        finalTemplateId = templateData.template.id;
+        finalColorVariantId = templateData.colorVariant?.id || null;
+      }
+
       const response = await api.post("/api/designs", {
         product_id: product.id,
         orientation: selectedAttributes.orientation || "horizontal",
         name: `${product.name} Design`,
+        // Design type fields - distinguishes Browse Design vs Upload Design
+        design_type: finalDesignType,
+        template_id: finalTemplateId,
+        color_variant_id: finalColorVariantId,
       });
 
       if (response.data?.success && response.data?.data?.id) {
         const newDesignId = response.data.data.id;
         setDesignId(newDesignId);
+        console.log('[createDesignOnServer] Design created:', {
+          designId: newDesignId,
+          designType: finalDesignType,
+          templateId: finalTemplateId,
+        });
         return newDesignId;
       }
       throw new Error("Failed to create design");
@@ -412,10 +560,59 @@ const ProductConfigurationFlow = () => {
     try {
       await api.get("/sanctum/csrf-cookie");
 
-      // Finalize design before adding to cart
+      // Finalize design before adding to cart - SEND THE COMPLETE PREVIEW IMAGES WITH TEXT LAYERS
       if (designId) {
-        console.log("Finalizing design:", designId);
-        await api.post(`/api/designs/${designId}/finalize`);
+        console.log("[handleAddToCart] Finalizing design:", designId);
+        console.log("[handleAddToCart] Custom designs state:", {
+          hasFront: !!customDesigns.front,
+          hasBack: !!customDesigns.back,
+          frontHasContent: customDesigns.front?.hasContent,
+          backHasContent: customDesigns.back?.hasContent,
+          frontPreviewType: customDesigns.front?.preview?.startsWith?.('data:') ? 'data URL' : 'other',
+          frontPreviewLength: customDesigns.front?.preview?.length,
+          frontPreviewStart: customDesigns.front?.preview?.substring?.(0, 50),
+          backPreviewType: customDesigns.back?.preview?.startsWith?.('data:') ? 'data URL' : 'other',
+          backPreviewLength: customDesigns.back?.preview?.length,
+          backPreviewStart: customDesigns.back?.preview?.substring?.(0, 50),
+          frontHasTextLayers: customDesigns.front?.textLayers?.length > 0,
+          backHasTextLayers: customDesigns.back?.textLayers?.length > 0,
+        });
+
+        // CRITICAL: Send the complete preview images (with text layers rendered) to the backend
+        // This ensures the Cart page displays the exact design the user created
+        const finalizePayload = {
+          front_preview: customDesigns.front?.preview || null,
+          back_preview: customDesigns.back?.preview || null,
+          front_text_layers: customDesigns.front?.textLayers || [],
+          back_text_layers: customDesigns.back?.textLayers || [],
+          orientation: customDesigns.orientation || selectedAttributes.orientation,
+          shape: customDesigns.shape || selectedAttributes.shape,
+        };
+
+        // Validate that we have data URL previews (required for backend to save)
+        if (finalizePayload.front_preview && !finalizePayload.front_preview.startsWith('data:')) {
+          console.warn("[handleAddToCart] WARNING: front_preview is not a data URL, backend may fail to save it");
+        }
+        if (finalizePayload.back_preview && !finalizePayload.back_preview.startsWith('data:')) {
+          console.warn("[handleAddToCart] WARNING: back_preview is not a data URL, backend may fail to save it");
+        }
+
+        console.log("[handleAddToCart] Finalize payload:", {
+          frontPreviewExists: !!finalizePayload.front_preview,
+          backPreviewExists: !!finalizePayload.back_preview,
+          frontIsDataUrl: finalizePayload.front_preview?.startsWith?.('data:'),
+          backIsDataUrl: finalizePayload.back_preview?.startsWith?.('data:'),
+          frontPreviewLength: finalizePayload.front_preview?.length,
+          backPreviewLength: finalizePayload.back_preview?.length,
+          // Log text layers being sent to server
+          frontTextLayersCount: finalizePayload.front_text_layers?.length || 0,
+          backTextLayersCount: finalizePayload.back_text_layers?.length || 0,
+          frontTextLayers: finalizePayload.front_text_layers,
+          backTextLayers: finalizePayload.back_text_layers,
+        });
+
+        const finalizeResponse = await api.post(`/api/designs/${designId}/finalize`, finalizePayload);
+        console.log("[handleAddToCart] Finalize response:", finalizeResponse.data);
       } else {
         console.warn("No designId available when adding to cart!");
       }
@@ -427,12 +624,36 @@ const ProductConfigurationFlow = () => {
         design_id: designId, // Link to saved design
       };
 
-      console.log("Adding to cart with payload:", cartPayload);
+      console.log("[handleAddToCart] CRITICAL - designId value:", designId);
+      console.log("[handleAddToCart] Cart payload:", cartPayload);
 
-      const response = await api.post("/api/cart/add", cartPayload);
+      if (!designId) {
+        console.error("[handleAddToCart] ERROR: designId is null/undefined! This will cause cart to not show the design.");
+      }
+
+      // Check if we're editing an existing cart item (coming from Cart's Edit Design)
+      const editingCartItemId = location.state?.cartItemId;
+      let response;
+
+      if (editingCartItemId) {
+        // UPDATE existing cart item (editing from Cart)
+        console.log("[handleAddToCart] Updating existing cart item:", editingCartItemId);
+        response = await api.put(`/api/cart/update/${editingCartItemId}`, {
+          ...cartPayload,
+          // Ensure design_id is updated even if attributes match
+        });
+        if (response.data?.success) {
+          setSuccess("Design updated successfully!");
+        }
+      } else {
+        // ADD new cart item (new design flow)
+        response = await api.post("/api/cart/add", cartPayload);
+        if (response.data?.success) {
+          setSuccess("Product added to cart successfully!");
+        }
+      }
 
       if (response.data?.success) {
-        setSuccess("Product added to cart successfully!");
         setTimeout(() => {
           navigate("/cart");
         }, 1500);
@@ -498,13 +719,26 @@ const ProductConfigurationFlow = () => {
 
   const finishingOptions = getFinishingOptions();
 
-  // Loading state
+  // Loading state - product loading
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-cyan-500 mx-auto mb-6"></div>
           <p className="text-gray-600 text-lg">Loading product...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state - design data loading (Edit from Cart flow)
+  if (isEditFromCart && loadingDesignData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-cyan-500 mx-auto mb-6"></div>
+          <p className="text-gray-600 text-lg">Loading your design...</p>
+          <p className="text-gray-400 text-sm mt-2">Restoring your previous work</p>
         </div>
       </div>
     );
@@ -680,7 +914,23 @@ const ProductConfigurationFlow = () => {
           <div className="pt-6 border-t space-y-3">
             {/* Browse Designs Button */}
             <button
-              onClick={() => setCurrentStep(4)} // Navigate to template browser
+              onClick={() => {
+                if (canProceedToStep2) {
+                  // Navigate to template browser route
+                  const templatesPath = categorySlug
+                    ? `/category/${categorySlug}/${actualProductSlug}/templates`
+                    : `/products/${actualProductSlug}/templates`;
+
+                  navigate(templatesPath, {
+                    state: {
+                      product,
+                      selectedAttributes,
+                      designId,
+                      sessionId,
+                    }
+                  });
+                }
+              }}
               disabled={!canProceedToStep2}
               className={`w-full py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all ${
                 canProceedToStep2
@@ -725,7 +975,22 @@ const ProductConfigurationFlow = () => {
   );
 
   // Render Step 2: Design Studio
-  const renderStep2 = () => (
+  const renderStep2 = () => {
+    // Debug log the props being passed to CanvasDesignStudio
+    console.log('[ProductConfigurationFlow] Rendering CanvasDesignStudio with props:', {
+      designId,
+      isEditMode: isEditFromCart,
+      hasEditingDesignData: !!editingDesignData,
+      initialFrontImage: editingDesignData?.frontImageUrl ? 'present' : 'null',
+      initialBackImage: editingDesignData?.backImageUrl ? 'present' : 'null',
+      initialFrontTextLayers: editingDesignData?.frontTextLayers?.length || 0,
+      initialBackTextLayers: editingDesignData?.backTextLayers?.length || 0,
+      initialFrontState: editingDesignData?.frontCanvasState ? 'present' : 'null',
+      initialBackState: editingDesignData?.backCanvasState ? 'present' : 'null',
+      templateData: templateData ? 'present' : 'null',
+    });
+
+    return (
     <div className="fixed inset-0 z-50 bg-white">
       <CanvasDesignStudio
         key={`${selectedAttributes.orientation}-${selectedAttributes.shape}`}
@@ -747,13 +1012,24 @@ const ProductConfigurationFlow = () => {
         initialBackState={editingDesignData?.backCanvasState}
         initialFrontImage={editingDesignData?.frontImageUrl}
         initialBackImage={editingDesignData?.backImageUrl}
-        isEditMode={!!location.state?.editDesignId}
+        // Pass text layers when editing from cart (so text is restored)
+        initialFrontTextLayers={editingDesignData?.frontTextLayers}
+        initialBackTextLayers={editingDesignData?.backTextLayers}
+        isEditMode={isEditFromCart}
+        // Pass template data when coming from TemplatePreview
+        templateData={templateData}
         onSave={(designs) => {
-          setCustomDesigns(designs);
+          // Update custom designs with full preview data including text layers
+          setCustomDesigns({
+            front: designs.front || customDesigns.front,
+            back: designs.back || customDesigns.back,
+            orientation: designs.orientation || selectedAttributes.orientation,
+            shape: designs.shape || selectedAttributes.shape,
+          });
           if (sessionInitialized && sessionId) {
             saveSession({
-              front_thumbnail: designs.front,
-              back_thumbnail: designs.back,
+              front_thumbnail: designs.front?.preview,
+              back_thumbnail: designs.back?.preview,
             });
           }
         }}
@@ -762,19 +1038,27 @@ const ProductConfigurationFlow = () => {
           setCurrentStep(1);
         }}
         onNext={(designs) => {
-          setCustomDesigns(designs);
+          // Store complete design data including text layers and metadata
+          setCustomDesigns({
+            front: designs.front,
+            back: designs.back,
+            orientation: designs.orientation || selectedAttributes.orientation,
+            shape: designs.shape || selectedAttributes.shape,
+            cardDimensions: designs.cardDimensions,
+          });
           setShowDesignStudio(false);
           setCurrentStep(3);
           if (sessionInitialized && sessionId) {
             saveSession({
-              front_thumbnail: designs.front,
-              back_thumbnail: designs.back,
+              front_thumbnail: designs.front?.preview,
+              back_thumbnail: designs.back?.preview,
             });
           }
         }}
       />
     </div>
-  );
+    );
+  };
 
   // Render Step 3: Final Steps - Finishing & Add to Cart
   const renderStep3 = () => {
@@ -1183,19 +1467,9 @@ const ProductConfigurationFlow = () => {
     );
   };
 
-  // Render Step 4: Template Browser
-  const renderStep4 = () => (
-    <TemplateBrowser />
-  );
-
   // Main render
   if (showDesignStudio && currentStep === 2) {
     return renderStep2();
-  }
-
-  // Template Browser (Step 4)
-  if (currentStep === 4) {
-    return renderStep4();
   }
 
   return (

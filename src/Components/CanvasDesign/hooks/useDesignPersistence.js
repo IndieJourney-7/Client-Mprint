@@ -26,18 +26,26 @@ export const useDesignPersistence = ({
 
   // Load initial canvas state from props (when editing from cart)
   useEffect(() => {
+    console.log('[useDesignPersistence] Initial state check:', {
+      hasFrontImage: !!initialFrontImage,
+      hasBackImage: !!initialBackImage,
+      frontImageUrl: initialFrontImage?.substring(0, 80),
+      backImageUrl: initialBackImage?.substring(0, 80),
+    });
+
     if (!initialFrontImage && !initialBackImage) {
+      console.log('[useDesignPersistence] No initial images to load');
       setLoadingInitialImages(false);
       return;
     }
 
     const loadInitialState = async () => {
       setLoadingInitialImages(true);
-      console.log('Loading initial state:', {
+      console.log('[useDesignPersistence] Loading initial state:', {
         initialFrontState,
         initialBackState,
-        initialFrontImage,
-        initialBackImage,
+        initialFrontImage: initialFrontImage?.substring(0, 80),
+        initialBackImage: initialBackImage?.substring(0, 80),
         safeArea,
       });
 
@@ -118,38 +126,86 @@ export const useDesignPersistence = ({
           error: error
         });
 
-        // Fallback: Use HTTP URL directly without conversion
-        // The image will display in canvas, but we can't convert to data URL
-        // generateCompleteCardPreview will handle CORS fallback during export
-        console.warn('[loadInitialImage] Using HTTP URL directly (no data URL conversion due to CORS)');
+        // Try fetching the image via fetch API with credentials
+        // This can sometimes work when direct Image loading fails
+        console.log('[loadInitialImage] Attempting fetch API fallback...');
 
-        // Load image to get dimensions, but use HTTP URL as src
-        const fallbackImg = new Image();
-        fallbackImg.onload = () => {
-          if (canvasState && canvasState.x !== undefined) {
-            // Use saved canvas state with HTTP URL
-            setImage({
-              src: imageUrl, // HTTP URL - will work for display, may fail for export
-              x: canvasState.x,
-              y: canvasState.y,
-              width: canvasState.width,
-              height: canvasState.height,
-              rotation: canvasState.rotation || 0,
-              naturalWidth: canvasState.naturalWidth || fallbackImg.width,
-              naturalHeight: canvasState.naturalHeight || fallbackImg.height,
-            });
-          } else {
-            // Center in safe area with HTTP URL
-            const imageData = createImageData(imageUrl, fallbackImg.width, fallbackImg.height, safeArea);
-            setImage(imageData);
-          }
-          resolve();
-        };
-        fallbackImg.onerror = () => {
-          console.error('[loadInitialImage] Fallback image also failed to load');
-          resolve();
-        };
-        fallbackImg.src = imageUrl;
+        fetch(imageUrl, { credentials: 'include' })
+          .then(response => {
+            if (!response.ok) throw new Error('Fetch failed');
+            return response.blob();
+          })
+          .then(blob => {
+            // Convert blob to data URL
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const dataUrl = reader.result;
+              console.log('[loadInitialImage] Fetch API succeeded, converted to data URL, length:', dataUrl.length);
+
+              // Load image to get dimensions
+              const tempImg = new Image();
+              tempImg.onload = () => {
+                if (canvasState && canvasState.x !== undefined) {
+                  setImage({
+                    src: dataUrl,
+                    x: canvasState.x,
+                    y: canvasState.y,
+                    width: canvasState.width,
+                    height: canvasState.height,
+                    rotation: canvasState.rotation || 0,
+                    naturalWidth: canvasState.naturalWidth || tempImg.width,
+                    naturalHeight: canvasState.naturalHeight || tempImg.height,
+                  });
+                } else {
+                  const imageData = createImageData(dataUrl, tempImg.width, tempImg.height, safeArea);
+                  setImage(imageData);
+                }
+                resolve();
+              };
+              tempImg.onerror = () => {
+                console.error('[loadInitialImage] Failed to load data URL after fetch');
+                resolve();
+              };
+              tempImg.src = dataUrl;
+            };
+            reader.readAsDataURL(blob);
+          })
+          .catch(fetchError => {
+            console.error('[loadInitialImage] Fetch API also failed:', fetchError);
+
+            // Final fallback: Use HTTP URL directly without conversion
+            // The image will display in canvas, but we can't convert to data URL
+            // generateCompleteCardPreview will handle CORS fallback during export
+            console.warn('[loadInitialImage] Using HTTP URL directly (no data URL conversion due to CORS)');
+
+            // Load image to get dimensions, but use HTTP URL as src
+            const fallbackImg = new Image();
+            fallbackImg.onload = () => {
+              if (canvasState && canvasState.x !== undefined) {
+                // Use saved canvas state with HTTP URL
+                setImage({
+                  src: imageUrl, // HTTP URL - will work for display, may fail for export
+                  x: canvasState.x,
+                  y: canvasState.y,
+                  width: canvasState.width,
+                  height: canvasState.height,
+                  rotation: canvasState.rotation || 0,
+                  naturalWidth: canvasState.naturalWidth || fallbackImg.width,
+                  naturalHeight: canvasState.naturalHeight || fallbackImg.height,
+                });
+              } else {
+                // Center in safe area with HTTP URL
+                const imageData = createImageData(imageUrl, fallbackImg.width, fallbackImg.height, safeArea);
+                setImage(imageData);
+              }
+              resolve();
+            };
+            fallbackImg.onerror = () => {
+              console.error('[loadInitialImage] Fallback image also failed to load');
+              resolve();
+            };
+            fallbackImg.src = imageUrl;
+          });
       };
 
       img.src = imageUrl;
@@ -157,7 +213,8 @@ export const useDesignPersistence = ({
   };
 
   // Save canvas state to server (auto-save to work session and design)
-  const saveCanvasStateToServer = useCallback(async (frontImage, backImage) => {
+  // Now includes text layers for complete state restoration
+  const saveCanvasStateToServer = useCallback(async (frontImage, backImage, frontTextLayers = null, backTextLayers = null) => {
     if (!designId && !sessionId) {
       console.log('Cannot save canvas state: no designId or sessionId');
       return false;
@@ -188,6 +245,9 @@ export const useDesignPersistence = ({
               naturalHeight: backImage.naturalHeight,
             }
           : null,
+        // Include text layers for complete state restoration during edit
+        front_text_layers: frontTextLayers,
+        back_text_layers: backTextLayers,
       };
 
       console.log('Saving canvas state payload:', payload);

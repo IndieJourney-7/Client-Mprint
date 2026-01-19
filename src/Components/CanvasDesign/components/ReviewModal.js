@@ -1,6 +1,7 @@
 /**
  * ReviewModal Component
  * Preview modal with 3D flip card animation - VIEW ONLY (no action buttons)
+ * Now supports real-time previews with text layers
  */
 
 import { useState } from 'react';
@@ -9,6 +10,10 @@ import { IoClose } from 'react-icons/io5';
 const ReviewModal = ({
   isOpen,
   onClose,
+  // Real-time previews (includes text layers)
+  frontPreview = null,
+  backPreview = null,
+  // Raw image data (fallback)
   frontImage,
   backImage,
   safeArea,
@@ -129,7 +134,15 @@ const ReviewModal = ({
                   borderRadius: cornerRadius > 0 ? `${cornerRadius}px` : '0',
                 }}
               >
-                {frontImage ? (
+                {/* Use generated preview if available, otherwise fall back to manual rendering */}
+                {frontPreview ? (
+                  <img
+                    src={frontPreview}
+                    alt="Front Design Preview"
+                    className="w-full h-full object-cover"
+                    style={{ borderRadius: cornerRadius > 0 ? `${cornerRadius}px` : '0' }}
+                  />
+                ) : frontImage ? (
                   <div className="w-full h-full relative bg-white" style={{ overflow: 'hidden' }}>
                     {renderImageInPreview(frontImage)}
                   </div>
@@ -150,7 +163,15 @@ const ReviewModal = ({
                   borderRadius: cornerRadius > 0 ? `${cornerRadius}px` : '0',
                 }}
               >
-                {backImage ? (
+                {/* Use generated preview if available, otherwise fall back to manual rendering */}
+                {backPreview ? (
+                  <img
+                    src={backPreview}
+                    alt="Back Design Preview"
+                    className="w-full h-full object-cover"
+                    style={{ borderRadius: cornerRadius > 0 ? `${cornerRadius}px` : '0' }}
+                  />
+                ) : backImage ? (
                   <div className="w-full h-full relative bg-white" style={{ overflow: 'hidden' }}>
                     {renderImageInPreview(backImage)}
                   </div>

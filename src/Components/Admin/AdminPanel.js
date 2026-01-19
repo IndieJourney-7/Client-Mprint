@@ -8,6 +8,7 @@ import ContactsManagement from './ContactsManagement';
 import FaqManagement from './FaqManagement';
 import PolicyManagement from './PolicyManagement';
 import UserUploadsManagement from './UserUploadsManagement';
+import TemplateManagement from './TemplateManagement';
 import {
   IoAdd,
   IoClose,
@@ -39,7 +40,8 @@ import {
   IoAlertCircleOutline,
   IoMailOutline,
   IoHelpCircleOutline,
-  IoDocumentTextOutline
+  IoDocumentTextOutline,
+  IoLayersOutline
 } from 'react-icons/io5';
 
 const AdminPanel = () => {
@@ -123,6 +125,13 @@ const AdminPanel = () => {
       icon: IoGridOutline,
       description: 'Organize catalog',
       color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'templates',
+      label: 'Templates',
+      icon: IoLayersOutline,
+      description: 'Design templates',
+      color: 'from-pink-500 to-rose-500'
     },
     {
       id: 'banners',
@@ -1109,6 +1118,7 @@ const AdminPanel = () => {
           {currentSection === 'faqs' && <FaqManagement />}
           {currentSection === 'policies' && <PolicyManagement />}
           {currentSection === 'uploads' && <UserUploadsManagement />}
+          {currentSection === 'templates' && <TemplateManagement />}
 
           {/* Products Section */}
           {currentSection === 'products' && (

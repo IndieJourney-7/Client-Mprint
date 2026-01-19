@@ -866,10 +866,16 @@ const CardDetailPage = () => {
               {/* Browse Designs Button - Primary */}
               <button
                 onClick={() => {
-                  const configPath = categorySlug
-                    ? `/category/${categorySlug}/${actualProductSlug}/configure`
-                    : `/products/${actualProductSlug}/configure`;
-                  navigate(configPath);
+                  const templatesPath = categorySlug
+                    ? `/category/${categorySlug}/${actualProductSlug}/templates`
+                    : `/products/${actualProductSlug}/templates`;
+
+                  navigate(templatesPath, {
+                    state: {
+                      product,
+                      selectedAttributes,
+                    }
+                  });
                 }}
                 className="w-full py-4 px-6 bg-cyan-400 hover:bg-cyan-500 text-gray-900 font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >

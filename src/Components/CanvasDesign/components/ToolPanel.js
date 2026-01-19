@@ -1,6 +1,6 @@
 /**
  * ToolPanel Component
- * Side panel that displays tool-specific content (uploads, templates, etc.)
+ * Side panel that displays tool-specific content (uploads, templates, text, etc.)
  */
 
 import React, { useRef } from 'react';
@@ -19,6 +19,8 @@ import { ALLOWED_TYPES } from '../constants';
 import { getStatusDisplay } from '../utils/imageHelpers';
 import UploadMenu from './UploadMenu';
 import ImageDetailsModal from './ImageDetailsModal';
+import TextToolPanel from './TextToolPanel';
+import TemplateToolPanel from './TemplateToolPanel';
 
 const ToolPanel = ({
   activeToolId,
@@ -44,6 +46,19 @@ const ToolPanel = ({
   onFitToSafeArea,
   onFillCanvas,
   onRemoveImage,
+  // Text props
+  currentTextLayers = [],
+  selectedTextLayer = null,
+  onAddText,
+  onUpdateText,
+  onRemoveText,
+  onSelectText,
+  // Template props
+  currentTemplate = null,
+  selectedColorVariant = null,
+  onApplyTemplate,
+  onSelectColorVariant,
+  productId,
 }) => {
   const fileInputRef = useRef(null);
 
@@ -291,9 +306,60 @@ const ToolPanel = ({
     );
   };
 
+  // Render text panel
+  const renderTextPanel = () => {
+    console.log('[ToolPanel] renderTextPanel with:', {
+      currentTextLayersCount: currentTextLayers?.length || 0,
+      currentTextLayers,
+    });
+    return (
+      <TextToolPanel
+        activeSide={activeSide}
+        currentTextLayers={currentTextLayers}
+        selectedTextLayer={selectedTextLayer}
+        onAddText={onAddText}
+        onUpdateText={onUpdateText}
+        onRemoveText={onRemoveText}
+        onSelectText={onSelectText}
+      />
+    );
+  };
+
+  // Render template panel with actual template functionality
+  const renderTemplateToolPanel = () => {
+    return (
+      <TemplateToolPanel
+        activeSide={activeSide}
+        currentTemplate={currentTemplate}
+        selectedColorVariant={selectedColorVariant}
+        onApplyTemplate={onApplyTemplate}
+        onSelectColorVariant={onSelectColorVariant}
+        productId={productId}
+      />
+    );
+  };
+
+  // Render panel based on active tool
+  const renderActivePanel = () => {
+    switch (activeToolId) {
+      case 'uploads':
+        return renderUploadsPanel();
+      case 'text':
+        return renderTextPanel();
+      case 'template':
+        return renderTemplateToolPanel();
+      case 'graphics':
+      case 'background':
+      case 'template-color':
+      case 'qr-codes':
+      default:
+        return renderTemplatePanel();
+    }
+  };
+
   return (
     <aside className="w-72 bg-white border-r overflow-y-auto">
-      {activeToolId === 'uploads' ? renderUploadsPanel() : renderTemplatePanel()}
+      {renderActivePanel()}
     </aside>
   );
 };

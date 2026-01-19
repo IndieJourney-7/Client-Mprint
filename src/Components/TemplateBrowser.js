@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { IoHeart, IoHeartOutline, IoSearch, IoCloudUploadOutline, IoChevronDown, IoChevronUp } from 'react-icons/io5';
 
@@ -18,6 +18,11 @@ const TemplateBrowser = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { slug, productSlug } = useParams();
+
+  // Determine actual product slug and category slug
+  const actualProductSlug = productSlug || slug;
+  const categorySlug = productSlug ? slug : null;
 
   // Get product info from navigation state
   const { product, selectedAttributes, designId, sessionId } = location.state || {};
@@ -92,32 +97,29 @@ const TemplateBrowser = () => {
     }
   };
 
-  // Handle template selection
-  const handleTemplateSelect = async (template, colorVariant = null) => {
-    try {
-      // Use the template
-      await api.post(`/api/templates/${template.id}/use`);
+  // Handle template selection - navigate to preview page
+  const handleTemplateSelect = (template) => {
+    // Navigate to template preview page
+    const previewPath = categorySlug
+      ? `/category/${categorySlug}/${actualProductSlug}/templates/${template.id}`
+      : `/products/${actualProductSlug}/templates/${template.id}`;
 
-      // Navigate to canvas with template data
-      navigate(`/products/${product.slug}`, {
-        state: {
-          ...location.state,
-          templateData: {
-            template,
-            colorVariant,
-            personalization,
-          },
-          showDesignStudio: true,
-        },
-      });
-    } catch (error) {
-      console.error('Error using template:', error);
-    }
+    navigate(previewPath, {
+      state: {
+        product,
+        selectedAttributes,
+        template,
+      },
+    });
   };
 
   // Handle upload own design
   const handleUploadOwn = () => {
-    navigate(`/products/${product.slug}`, {
+    const configurePath = categorySlug
+      ? `/category/${categorySlug}/${actualProductSlug}/configure`
+      : `/products/${actualProductSlug}/configure`;
+
+    navigate(configurePath, {
       state: {
         ...location.state,
         showDesignStudio: true,
@@ -419,7 +421,7 @@ const TemplateCard = ({ template, onSelect, onFavoriteToggle }) => {
 
       {/* Template Preview */}
       <div
-        onClick={() => onSelect(template, selectedVariant)}
+        onClick={() => onSelect(template)}
         className="cursor-pointer"
       >
         <div className="relative aspect-[3/2] bg-gray-100 overflow-hidden">

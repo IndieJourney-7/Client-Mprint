@@ -5,6 +5,10 @@
 
 import { FaRegImages } from 'react-icons/fa';
 import { BsLayers } from 'react-icons/bs';
+import { IoText } from 'react-icons/io5';
+import { MdColorLens } from 'react-icons/md';
+import { BiShapeSquare } from 'react-icons/bi';
+import { BsQrCode } from 'react-icons/bs';
 
 // Re-export dimension helpers for convenience
 export {
@@ -88,7 +92,12 @@ export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 // Sidebar tool definitions
 export const SIDEBAR_TOOLS = [
   { id: 'uploads', icon: FaRegImages, label: 'Uploads' },
+  { id: 'text', icon: IoText, label: 'Text' },
+  { id: 'graphics', icon: BiShapeSquare, label: 'Graphics' },
+  { id: 'background', icon: MdColorLens, label: 'Backgrou\nnd' },
   { id: 'template', icon: BsLayers, label: 'Template' },
+  { id: 'template-color', icon: MdColorLens, label: 'Template\ncolor' },
+  { id: 'qr-codes', icon: BsQrCode, label: 'QR-codes' },
 ];
 
 // Zoom constraints

@@ -41,6 +41,8 @@ import PolicyPage from "./Components/PolicyPage";
 import ProductFinalizePage from "./Components/ProductFinalizePage";
 import ProductConfigurationFlow from "./Components/ProductConfigurationFlow";
 import ReviewDesignPage from "./Components/ReviewDesignPage";
+import TemplateBrowser from "./Components/TemplateBrowser";
+import TemplatePreview from "./Components/TemplatePreview";
 
 // ==========================================
 // DYNAMIC CATEGORY PAGE (REPLACES ALL INDIVIDUAL PAGES)
@@ -278,6 +280,22 @@ function App() {
           <Route
             path="/category/:slug/:productSlug/configure"
             element={<ProductConfigurationFlow />}
+          />
+          <Route
+            path="/products/:slug/templates"
+            element={<TemplateBrowser />}
+          />
+          <Route
+            path="/category/:slug/:productSlug/templates"
+            element={<TemplateBrowser />}
+          />
+          <Route
+            path="/products/:slug/templates/:templateId"
+            element={<TemplatePreview />}
+          />
+          <Route
+            path="/category/:slug/:productSlug/templates/:templateId"
+            element={<TemplatePreview />}
           />
 
           {/* ==================== CONTACT US PAGE ==================== */}

@@ -25,6 +25,13 @@ const CanvasArea = ({
   isSelected,
   uploading,
   cornerRadius = 0, // Corner radius in pixels (0 = sharp, >0 = rounded)
+  // Text props
+  textLayers = [],
+  selectedTextId = null,
+  onTextClick,
+  onTextMouseDown,
+  onTextDoubleClick,
+  isEditingText = false,
   // Actions
   onFileSelect,
   onCanvasClick,
@@ -188,6 +195,65 @@ const CanvasArea = ({
               )}
             </>
           )}
+
+          {/* Text Layers */}
+          {console.log('[CanvasArea] Rendering text layers:', textLayers?.length || 0, textLayers)}
+          {textLayers.map((textLayer) => {
+            const isTextSelected = selectedTextId === textLayer.id;
+            return (
+              <div
+                key={textLayer.id}
+                className={`absolute cursor-move select-none ${
+                  isTextSelected ? 'ring-2 ring-cyan-500 ring-offset-1' : ''
+                }`}
+                style={{
+                  left: textLayer.x,
+                  top: textLayer.y,
+                  width: textLayer.width || 'auto',
+                  minWidth: '50px',
+                  transform: `rotate(${textLayer.rotation || 0}deg)`,
+                  fontFamily: textLayer.fontFamily,
+                  fontSize: `${textLayer.fontSize}px`,
+                  fontWeight: textLayer.fontWeight,
+                  fontStyle: textLayer.fontStyle,
+                  color: textLayer.color,
+                  textAlign: textLayer.textAlign,
+                  textDecoration: textLayer.textDecoration,
+                  lineHeight: textLayer.lineHeight,
+                  letterSpacing: `${textLayer.letterSpacing}px`,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  padding: '4px 8px',
+                  zIndex: isTextSelected ? 25 : 15,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTextClick?.(textLayer.id);
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onTextMouseDown?.(e, textLayer.id);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  onTextDoubleClick?.(textLayer.id);
+                }}
+              >
+                {textLayer.text}
+
+                {/* Text selection handles */}
+                {isTextSelected && (
+                  <>
+                    {/* Corner resize handles for text */}
+                    <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-cyan-500 rounded-full cursor-nw-resize" />
+                    <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-cyan-500 rounded-full cursor-ne-resize" />
+                    <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-cyan-500 rounded-full cursor-sw-resize" />
+                    <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-cyan-500 rounded-full cursor-se-resize" />
+                  </>
+                )}
+              </div>
+            );
+          })}
 
           {/* Safety area guide - with optional rounded corners */}
           <div

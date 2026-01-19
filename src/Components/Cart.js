@@ -312,7 +312,19 @@ const Cart = () => {
             {cartItems.map((item) => {
               const attributes = parseAttributes(item);
               const isExpanded = expandedItems[item.id];
-              
+
+              // Debug: Log the cart item data to check design URLs
+              console.log('[Cart] Cart item data:', {
+                id: item.id,
+                design_id: item.design_id,
+                front_design_url: item.front_design_url,
+                back_design_url: item.back_design_url,
+                front_original_url: item.front_original_url,
+                back_original_url: item.back_original_url,
+                design_type: item.design_type,
+                product_image: item.product?.featured_image_url,
+              });
+
               // Determine which image to show - prioritize user's design over product image
               const hasFrontDesign = !!item.front_design_url;
               const hasBackDesign = !!item.back_design_url;
@@ -394,6 +406,14 @@ const Cart = () => {
                                 {displayLabel}
                               </div>
                             )}
+                            {/* Design type badge - shows Uploaded or Customized */}
+                            {item.design_type && item.design_type !== 'blank' && (
+                              <div className={`absolute top-2 left-2 text-white text-xs px-2 py-0.5 rounded ${
+                                item.design_type === 'uploaded' ? 'bg-blue-500/80' : 'bg-green-500/80'
+                              }`}>
+                                {item.design_type === 'uploaded' ? 'Uploaded' : 'Customized'}
+                              </div>
+                            )}
                           </div>
                           
                           {/* Navigation arrows - only show if both front and back exist */}
@@ -439,7 +459,21 @@ const Cart = () => {
                       {/* Product Info */}
                       <div className="flex-1">
                         <div className="flex justify-between items-start mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{name}</h3>
+                            {/* Show template name if design is customized from a template */}
+                            {item.design_type === 'customized' && item.template_name && (
+                              <p className="text-sm text-gray-500 mt-0.5">
+                                Template: {item.template_name}
+                              </p>
+                            )}
+                            {/* Show "Uploaded Design" label for uploaded designs */}
+                            {item.design_type === 'uploaded' && (
+                              <p className="text-sm text-blue-600 mt-0.5">
+                                Your Uploaded Design
+                              </p>
+                            )}
+                          </div>
                           <button
                             onClick={() => removeItem(item.id)}
                             className="text-cyan-600 hover:text-cyan-700 text-sm underline"

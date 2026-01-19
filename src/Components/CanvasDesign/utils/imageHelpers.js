@@ -65,9 +65,10 @@ export const checkImageStatus = (img, safeArea, cardPreset) => {
  * @param {Object} cardPreset - Card preset with dimensions
  * @param {HTMLCanvasElement} exportCanvas - Canvas element for export
  * @param {number} cornerRadius - Corner radius in pixels (0 for sharp corners)
+ * @param {Array} textLayers - Array of text layer objects to render
  * @returns {Promise<string|null>} Data URL of the complete card preview
  */
-export const generateCompleteCardPreview = async (imageData, cardPreset, exportCanvas, cornerRadius = 0) => {
+export const generateCompleteCardPreview = async (imageData, cardPreset, exportCanvas, cornerRadius = 0, textLayers = []) => {
   if (!exportCanvas) {
     console.error('[generateCompleteCardPreview] No export canvas provided');
     return null;
@@ -113,7 +114,13 @@ export const generateCompleteCardPreview = async (imageData, cardPreset, exportC
   if (imageData && imageData.src) {
     return new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+
+      // Only set crossOrigin for HTTP URLs, not for data URLs or blob URLs
+      const isDataUrl = imageData.src.startsWith('data:');
+      const isBlobUrl = imageData.src.startsWith('blob:');
+      if (!isDataUrl && !isBlobUrl) {
+        img.crossOrigin = 'anonymous';
+      }
 
       img.onload = () => {
         console.log('[generateCompleteCardPreview] Image loaded, drawing:', {
@@ -127,6 +134,9 @@ export const generateCompleteCardPreview = async (imageData, cardPreset, exportC
         const drawY = imageData.y - imageData.height / 2;
         ctx.drawImage(img, drawX, drawY, imageData.width, imageData.height);
 
+        // Draw text layers on top of image
+        renderTextLayersToCanvas(ctx, textLayers);
+
         ctx.restore();
         const dataUrl = exportCanvas.toDataURL('image/png', 1);
         console.log('[generateCompleteCardPreview] Preview generated successfully, length:', dataUrl.length);
@@ -135,29 +145,166 @@ export const generateCompleteCardPreview = async (imageData, cardPreset, exportC
 
       img.onerror = (error) => {
         console.error('[generateCompleteCardPreview] Failed to load image with CORS:', {
-          src: imageData.src,
+          src: imageData.src?.substring(0, 100),
           error: error,
           srcType: imageData.src?.startsWith('data:') ? 'data URL' : imageData.src?.startsWith('blob:') ? 'blob URL' : 'HTTP URL'
         });
 
-        // If CORS fails, we cannot export canvas to data URL (canvas would be tainted)
-        // Solution: Return the original source URL as the preview
-        // This works because the original URL will be used for display
-        console.warn('[generateCompleteCardPreview] CORS failed - returning original source URL as preview');
-        ctx.restore();
+        // CORS failed - try to fetch the image and convert to data URL
+        // This is necessary because canvas becomes tainted with cross-origin images
+        console.warn('[generateCompleteCardPreview] CORS failed - attempting fetch fallback');
 
-        // Return the original image source URL instead of trying to export tainted canvas
-        resolve(imageData.src);
+        // Try fetching the image as blob and converting to data URL
+        fetch(imageData.src, { mode: 'cors', credentials: 'include' })
+          .then(response => {
+            if (!response.ok) throw new Error('Fetch failed');
+            return response.blob();
+          })
+          .then(blob => {
+            return new Promise((resolveBlob) => {
+              const reader = new FileReader();
+              reader.onload = () => resolveBlob(reader.result);
+              reader.onerror = () => resolveBlob(null);
+              reader.readAsDataURL(blob);
+            });
+          })
+          .then(dataUrl => {
+            if (dataUrl) {
+              // Successfully converted to data URL, now draw it
+              const retryImg = new Image();
+              retryImg.onload = () => {
+                ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+                const drawX = imageData.x - imageData.width / 2;
+                const drawY = imageData.y - imageData.height / 2;
+                ctx.drawImage(retryImg, drawX, drawY, imageData.width, imageData.height);
+
+                renderTextLayersToCanvas(ctx, textLayers);
+                ctx.restore();
+
+                const result = exportCanvas.toDataURL('image/png', 1);
+                console.log('[generateCompleteCardPreview] Fetch fallback succeeded, length:', result.length);
+                resolve(result);
+              };
+              retryImg.onerror = () => {
+                // Still failed - generate white background with text
+                generateFallbackPreview();
+              };
+              retryImg.src = dataUrl;
+            } else {
+              generateFallbackPreview();
+            }
+          })
+          .catch(() => {
+            generateFallbackPreview();
+          });
+
+        // Fallback: Generate white background preview (with or without text)
+        function generateFallbackPreview() {
+          console.warn('[generateCompleteCardPreview] All image loading failed - creating white background preview');
+
+          ctx.clearRect(0, 0, exportCanvas.width, exportCanvas.height);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+          // Always render text layers if they exist
+          if (textLayers && textLayers.length > 0) {
+            renderTextLayersToCanvas(ctx, textLayers);
+          }
+
+          ctx.restore();
+          const result = exportCanvas.toDataURL('image/png', 1);
+          console.log('[generateCompleteCardPreview] Fallback preview generated, length:', result.length);
+          resolve(result);
+        }
       };
 
       img.src = imageData.src;
     });
   } else {
-    // No image, return white card
-    console.warn('[generateCompleteCardPreview] No imageData or imageData.src, returning white card');
+    // No image, but may have text layers
+    console.warn('[generateCompleteCardPreview] No imageData or imageData.src, rendering text only');
+
+    // Draw text layers
+    renderTextLayersToCanvas(ctx, textLayers);
+
     ctx.restore();
     return Promise.resolve(exportCanvas.toDataURL('image/png', 1));
   }
+};
+
+/**
+ * Render text layers to canvas context
+ * @param {CanvasRenderingContext2D} ctx - Canvas 2D context
+ * @param {Array} textLayers - Array of text layer objects
+ */
+const renderTextLayersToCanvas = (ctx, textLayers) => {
+  if (!textLayers || textLayers.length === 0) return;
+
+  textLayers.forEach((layer) => {
+    if (!layer.text) return;
+
+    ctx.save();
+
+    // Apply rotation if any
+    if (layer.rotation) {
+      const centerX = layer.x + (layer.width || 100) / 2;
+      const centerY = layer.y + (layer.height || 30) / 2;
+      ctx.translate(centerX, centerY);
+      ctx.rotate((layer.rotation * Math.PI) / 180);
+      ctx.translate(-centerX, -centerY);
+    }
+
+    // Set font properties
+    const fontStyle = layer.fontStyle === 'italic' ? 'italic ' : '';
+    const fontWeight = layer.fontWeight === 'bold' ? 'bold ' : '';
+    const fontSize = layer.fontSize || 24;
+    const fontFamily = layer.fontFamily || 'Arial, sans-serif';
+
+    ctx.font = `${fontStyle}${fontWeight}${fontSize}px ${fontFamily}`;
+    ctx.fillStyle = layer.color || '#000000';
+    ctx.textAlign = layer.textAlign || 'left';
+    ctx.textBaseline = 'top';
+
+    // Calculate text position based on alignment
+    let textX = layer.x + 8; // Add padding
+    if (layer.textAlign === 'center') {
+      textX = layer.x + (layer.width || 200) / 2;
+    } else if (layer.textAlign === 'right') {
+      textX = layer.x + (layer.width || 200) - 8;
+    }
+
+    // Handle text decoration (underline)
+    const textY = layer.y + 4; // Add top padding
+
+    // Draw text
+    ctx.fillText(layer.text, textX, textY);
+
+    // Draw underline if needed
+    if (layer.textDecoration === 'underline') {
+      const textMetrics = ctx.measureText(layer.text);
+      const underlineY = textY + fontSize + 2;
+
+      ctx.beginPath();
+      ctx.strokeStyle = layer.color || '#000000';
+      ctx.lineWidth = Math.max(1, fontSize / 15);
+
+      let underlineStartX = textX;
+      if (layer.textAlign === 'center') {
+        underlineStartX = textX - textMetrics.width / 2;
+      } else if (layer.textAlign === 'right') {
+        underlineStartX = textX - textMetrics.width;
+      }
+
+      ctx.moveTo(underlineStartX, underlineY);
+      ctx.lineTo(underlineStartX + textMetrics.width, underlineY);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  });
 };
 
 /**

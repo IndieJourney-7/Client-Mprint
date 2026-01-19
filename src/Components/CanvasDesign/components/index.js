@@ -13,3 +13,5 @@ export { default as ReviewModal } from './ReviewModal';
 export { default as ImageDetailsModal } from './ImageDetailsModal';
 export { default as UploadMenu } from './UploadMenu';
 export { default as LoadingOverlay } from './LoadingOverlay';
+export { default as TextToolPanel } from './TextToolPanel';
+export { default as TemplateToolPanel } from './TemplateToolPanel';
