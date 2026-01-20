@@ -93,16 +93,8 @@ const useTextState = (cardPreset) => {
     return currentTextLayers.find(layer => layer.id === selectedTextId) || null;
   }, [currentTextLayers, selectedTextId]);
 
-  // Set text layers for current side
-  const setCurrentTextLayers = useCallback((layers) => {
-    if (activeTextSide === 'front') {
-      setFrontTextLayers(layers);
-    } else {
-      setBackTextLayers(layers);
-    }
-  }, [activeTextSide]);
-
   // Add new text layer to current side
+  // IMPORTANT: Use functional update to avoid stale closure
   const addTextLayer = useCallback((presetId = null, customProps = {}) => {
     const preset = presetId
       ? TEXT_FIELD_PRESETS.find(p => p.id === presetId)
@@ -126,10 +118,16 @@ const useTextState = (cardPreset) => {
       presetId: presetId,
     };
 
-    setCurrentTextLayers([...currentTextLayers, newLayer]);
+    // Use functional update to add layer
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(prev => [...prev, newLayer]);
+    } else {
+      setBackTextLayers(prev => [...prev, newLayer]);
+    }
+
     setSelectedTextId(newLayer.id);
     return newLayer;
-  }, [currentTextLayers, setCurrentTextLayers, cardPreset]);
+  }, [activeTextSide, cardPreset]);
 
   // Add text layer to a SPECIFIC side (front or back)
   // Used for restoring saved text layers during Edit Design
@@ -188,13 +186,29 @@ const useTextState = (cardPreset) => {
   }, [cardPreset]);
 
   // Update text layer
+  // IMPORTANT: Use functional update to avoid stale closure with currentTextLayers
   const updateTextLayer = useCallback((layerId, updates) => {
-    setCurrentTextLayers(
-      currentTextLayers.map(layer =>
-        layer.id === layerId ? { ...layer, ...updates } : layer
-      )
-    );
-  }, [currentTextLayers, setCurrentTextLayers]);
+    console.log('[useTextState] updateTextLayer called:', { layerId, updates, activeTextSide });
+
+    // Use functional updates to get fresh state and avoid stale closures
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(prev => {
+        const updated = prev.map(layer =>
+          layer.id === layerId ? { ...layer, ...updates } : layer
+        );
+        console.log('[useTextState] Updated front text layers:', updated);
+        return updated;
+      });
+    } else {
+      setBackTextLayers(prev => {
+        const updated = prev.map(layer =>
+          layer.id === layerId ? { ...layer, ...updates } : layer
+        );
+        console.log('[useTextState] Updated back text layers:', updated);
+        return updated;
+      });
+    }
+  }, [activeTextSide]);
 
   // Update selected text layer
   const updateSelectedText = useCallback((updates) => {
@@ -204,12 +218,20 @@ const useTextState = (cardPreset) => {
   }, [selectedTextId, updateTextLayer]);
 
   // Remove text layer
+  // IMPORTANT: Use functional update to avoid stale closure
   const removeTextLayer = useCallback((layerId) => {
-    setCurrentTextLayers(currentTextLayers.filter(layer => layer.id !== layerId));
+    console.log('[useTextState] removeTextLayer called:', { layerId, activeTextSide });
+
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(prev => prev.filter(layer => layer.id !== layerId));
+    } else {
+      setBackTextLayers(prev => prev.filter(layer => layer.id !== layerId));
+    }
+
     if (selectedTextId === layerId) {
       setSelectedTextId(null);
     }
-  }, [currentTextLayers, setCurrentTextLayers, selectedTextId]);
+  }, [activeTextSide, selectedTextId]);
 
   // Remove selected text layer
   const removeSelectedText = useCallback(() => {
@@ -219,21 +241,35 @@ const useTextState = (cardPreset) => {
   }, [selectedTextId, removeTextLayer]);
 
   // Duplicate text layer
+  // IMPORTANT: Use functional update to avoid stale closure
   const duplicateTextLayer = useCallback((layerId) => {
-    const layer = currentTextLayers.find(l => l.id === layerId);
-    if (layer) {
-      const newLayer = {
-        ...layer,
-        id: generateId(),
-        x: layer.x + 20,
-        y: layer.y + 20,
-      };
-      setCurrentTextLayers([...currentTextLayers, newLayer]);
-      setSelectedTextId(newLayer.id);
-      return newLayer;
+    let newLayer = null;
+
+    const updateFn = (prev) => {
+      const layer = prev.find(l => l.id === layerId);
+      if (layer) {
+        newLayer = {
+          ...layer,
+          id: generateId(),
+          x: layer.x + 20,
+          y: layer.y + 20,
+        };
+        return [...prev, newLayer];
+      }
+      return prev;
+    };
+
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(updateFn);
+    } else {
+      setBackTextLayers(updateFn);
     }
-    return null;
-  }, [currentTextLayers, setCurrentTextLayers]);
+
+    if (newLayer) {
+      setSelectedTextId(newLayer.id);
+    }
+    return newLayer;
+  }, [activeTextSide]);
 
   // Select text layer
   const selectTextLayer = useCallback((layerId) => {
@@ -267,22 +303,42 @@ const useTextState = (cardPreset) => {
   }, [updateTextLayer]);
 
   // Bring text layer to front
+  // IMPORTANT: Use functional update to avoid stale closure
   const bringToFront = useCallback((layerId) => {
-    const layer = currentTextLayers.find(l => l.id === layerId);
-    if (layer) {
-      const otherLayers = currentTextLayers.filter(l => l.id !== layerId);
-      setCurrentTextLayers([...otherLayers, layer]);
+    const updateFn = (prev) => {
+      const layer = prev.find(l => l.id === layerId);
+      if (layer) {
+        const otherLayers = prev.filter(l => l.id !== layerId);
+        return [...otherLayers, layer];
+      }
+      return prev;
+    };
+
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(updateFn);
+    } else {
+      setBackTextLayers(updateFn);
     }
-  }, [currentTextLayers, setCurrentTextLayers]);
+  }, [activeTextSide]);
 
   // Send text layer to back
+  // IMPORTANT: Use functional update to avoid stale closure
   const sendToBack = useCallback((layerId) => {
-    const layer = currentTextLayers.find(l => l.id === layerId);
-    if (layer) {
-      const otherLayers = currentTextLayers.filter(l => l.id !== layerId);
-      setCurrentTextLayers([layer, ...otherLayers]);
+    const updateFn = (prev) => {
+      const layer = prev.find(l => l.id === layerId);
+      if (layer) {
+        const otherLayers = prev.filter(l => l.id !== layerId);
+        return [layer, ...otherLayers];
+      }
+      return prev;
+    };
+
+    if (activeTextSide === 'front') {
+      setFrontTextLayers(updateFn);
+    } else {
+      setBackTextLayers(updateFn);
     }
-  }, [currentTextLayers, setCurrentTextLayers]);
+  }, [activeTextSide]);
 
   // Check if there are any text layers
   const hasTextLayers = useMemo(() => {
