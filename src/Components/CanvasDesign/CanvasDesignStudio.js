@@ -518,12 +518,12 @@ const CanvasDesignStudio = ({
     });
 
     onDesignsChange?.({
-      front: frontImage
-        ? { preview: frontPreview, hasContent: true, status: frontStatus }
-        : { preview: null, hasContent: false, status: { isValid: false } },
-      back: backImage
-        ? { preview: backPreview, hasContent: true, status: backStatus }
-        : { preview: null, hasContent: false, status: { isValid: false } },
+      front: (frontImage || frontTextLayers.length > 0)
+        ? { preview: frontPreview, hasContent: true, status: frontStatus, textLayers: frontTextLayers }
+        : { preview: null, hasContent: false, status: { isValid: false }, textLayers: [] },
+      back: (backImage || backTextLayers.length > 0)
+        ? { preview: backPreview, hasContent: true, status: backStatus, textLayers: backTextLayers }
+        : { preview: null, hasContent: false, status: { isValid: false }, textLayers: [] },
       orientation,
       shape: cornerRadius > 0 ? 'rounded' : 'rectangle',
       cardDimensions: {
@@ -531,12 +531,12 @@ const CanvasDesignStudio = ({
         height: safeArea.height,
       },
     });
-  }, [onDesignsChange, frontImage, backImage, frontStatus, backStatus, safeArea, cornerRadius, orientation, cardPreset]);
+  }, [onDesignsChange, frontImage, backImage, frontStatus, backStatus, safeArea, cornerRadius, orientation, cardPreset, textState]);
 
-  // Notify on image changes
+  // Notify on image or text layer changes
   React.useEffect(() => {
     notifyDesignChange();
-  }, [frontImage, backImage, notifyDesignChange]);
+  }, [frontImage, backImage, textState.frontTextLayers, textState.backTextLayers, notifyDesignChange]);
 
   // Handle file upload
   const handleFileSelect = async (e) => {
