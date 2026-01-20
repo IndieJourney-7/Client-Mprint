@@ -255,6 +255,9 @@ const CanvasDesignStudio = ({
         });
       }
 
+      // Auto-switch to Text panel so user can see and edit their restored text
+      setActiveToolId('text');
+
       console.log('[CanvasDesignStudio] ✅ TEXT RESTORATION COMPLETE');
     });
 
@@ -264,6 +267,8 @@ const CanvasDesignStudio = ({
   const handleTextClick = (textId) => {
     selectTextLayer(textId);
     setIsSelected(false); // Deselect image when text is selected
+    // Auto-switch to Text panel so user can edit the selected text
+    setActiveToolId('text');
   };
 
   // Handle text mouse down for dragging
@@ -299,6 +304,8 @@ const CanvasDesignStudio = ({
   const handleTextDoubleClick = (textId) => {
     selectTextLayer(textId);
     setIsEditingText(true);
+    // Auto-switch to Text panel so user can edit the selected text
+    setActiveToolId('text');
   };
 
   // Handle template application
