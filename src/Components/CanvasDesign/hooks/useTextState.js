@@ -186,29 +186,38 @@ const useTextState = (cardPreset) => {
   }, [cardPreset]);
 
   // Update text layer
-  // IMPORTANT: Use functional update to avoid stale closure with currentTextLayers
+  // IMPORTANT: Update both arrays to handle layers that might be on either side
+  // This fixes the issue where restored layers couldn't be edited because
+  // we were only searching in the activeTextSide array
   const updateTextLayer = useCallback((layerId, updates) => {
-    console.log('[useTextState] updateTextLayer called:', { layerId, updates, activeTextSide });
+    console.log('[useTextState] updateTextLayer called:', { layerId, updates });
 
-    // Use functional updates to get fresh state and avoid stale closures
-    if (activeTextSide === 'front') {
-      setFrontTextLayers(prev => {
+    // Update front layers if the layer exists there
+    setFrontTextLayers(prev => {
+      const layerExists = prev.some(layer => layer.id === layerId);
+      if (layerExists) {
         const updated = prev.map(layer =>
           layer.id === layerId ? { ...layer, ...updates } : layer
         );
-        console.log('[useTextState] Updated front text layers:', updated);
+        console.log('[useTextState] Updated front text layer:', layerId);
         return updated;
-      });
-    } else {
-      setBackTextLayers(prev => {
+      }
+      return prev;
+    });
+
+    // Update back layers if the layer exists there
+    setBackTextLayers(prev => {
+      const layerExists = prev.some(layer => layer.id === layerId);
+      if (layerExists) {
         const updated = prev.map(layer =>
           layer.id === layerId ? { ...layer, ...updates } : layer
         );
-        console.log('[useTextState] Updated back text layers:', updated);
+        console.log('[useTextState] Updated back text layer:', layerId);
         return updated;
-      });
-    }
-  }, [activeTextSide]);
+      }
+      return prev;
+    });
+  }, []);
 
   // Update selected text layer
   const updateSelectedText = useCallback((updates) => {
@@ -218,20 +227,20 @@ const useTextState = (cardPreset) => {
   }, [selectedTextId, updateTextLayer]);
 
   // Remove text layer
-  // IMPORTANT: Use functional update to avoid stale closure
+  // IMPORTANT: Remove from both arrays to handle layers on either side
   const removeTextLayer = useCallback((layerId) => {
-    console.log('[useTextState] removeTextLayer called:', { layerId, activeTextSide });
+    console.log('[useTextState] removeTextLayer called:', { layerId });
 
-    if (activeTextSide === 'front') {
-      setFrontTextLayers(prev => prev.filter(layer => layer.id !== layerId));
-    } else {
-      setBackTextLayers(prev => prev.filter(layer => layer.id !== layerId));
-    }
+    // Remove from front layers
+    setFrontTextLayers(prev => prev.filter(layer => layer.id !== layerId));
+
+    // Remove from back layers
+    setBackTextLayers(prev => prev.filter(layer => layer.id !== layerId));
 
     if (selectedTextId === layerId) {
       setSelectedTextId(null);
     }
-  }, [activeTextSide, selectedTextId]);
+  }, [selectedTextId]);
 
   // Remove selected text layer
   const removeSelectedText = useCallback(() => {
