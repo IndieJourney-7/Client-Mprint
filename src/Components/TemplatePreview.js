@@ -35,6 +35,7 @@ const TemplatePreview = () => {
       fetchTemplate();
     }
     fetchRelatedTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId, passedTemplate]);
 
   const fetchTemplate = async () => {

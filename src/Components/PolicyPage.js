@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import {
   IoDocumentTextOutline,
   IoShieldCheckmark,
@@ -20,7 +20,7 @@ const PolicyPage = () => {
   const [allPolicies, setAllPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   // Policy configurations
   const policyConfig = {
@@ -107,6 +107,7 @@ const PolicyPage = () => {
       fetchPolicy();
       fetchAllPolicies();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [type]);
 
   // Format date

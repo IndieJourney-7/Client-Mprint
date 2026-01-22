@@ -7,7 +7,7 @@ function Newarrival() {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   const scrollLeft = () => scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" });
   const scrollRight = () => scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" });
@@ -43,6 +43,7 @@ function Newarrival() {
       }
     };
     fetchNewArrivals();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getProductImageUrl = (product) => {
@@ -68,7 +69,7 @@ function Newarrival() {
 
   const handleProductClick = (product) => {
     const categorySlug = getCategorySlug(product);
-    navigate(`/${categorySlug}/${product.slug}`);
+    navigate(`/category/${categorySlug}/${product.slug}`);
   };
 
   if (loading) {

@@ -36,7 +36,7 @@ const MyProjectsPage = () => {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
-  const API_BASE_URL = 'http://127.0.0.1:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
   // Tabs configuration
   const tabs = [
@@ -48,6 +48,7 @@ const MyProjectsPage = () => {
 
   useEffect(() => {
     checkAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

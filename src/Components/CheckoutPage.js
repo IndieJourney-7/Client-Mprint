@@ -16,7 +16,6 @@ const CheckoutPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [cartItems, setCartItems] = useState([]);
-  const [user, setUser] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,10 +28,11 @@ const CheckoutPage = () => {
     payment_method: 'Cash on Delivery'
   });
 
-  const API_BASE_URL = 'http://127.0.0.1:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
     checkAuthAndFetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkAuthAndFetchData = async () => {
@@ -46,7 +46,6 @@ const CheckoutPage = () => {
         return;
       }
 
-      setUser(userData);
       setFormData(prev => ({ ...prev, name: userData.name || '' }));
 
       // Check if Buy Now (single product) or cart checkout

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FaPhone,
@@ -226,8 +226,8 @@ const ContactUsPage = () => {
             </div>
             <div>
               <h3 className="font-semibold text-gray-800">Call Us</h3>
-              <a href="tel:02522669393" className="text-amber-600 hover:text-amber-700 font-medium">
-                02522-669393
+              <a href={`tel:${(process.env.REACT_APP_PHONE_NUMBER || "02522-669393").replace(/-/g, '')}`} className="text-amber-600 hover:text-amber-700 font-medium">
+                {process.env.REACT_APP_PHONE_NUMBER || "02522-669393"}
               </a>
               <p className="text-sm text-gray-500">Mon-Sat, 9AM-6PM</p>
             </div>
@@ -240,8 +240,8 @@ const ContactUsPage = () => {
             </div>
             <div>
               <h3 className="font-semibold text-gray-800">Email Us</h3>
-              <a href="mailto:support@mprint.com" className="text-amber-600 hover:text-amber-700 font-medium">
-                support@mprint.com
+              <a href={`mailto:${process.env.REACT_APP_SUPPORT_EMAIL || "support@mprint.com"}`} className="text-amber-600 hover:text-amber-700 font-medium">
+                {process.env.REACT_APP_SUPPORT_EMAIL || "support@mprint.com"}
               </a>
               <p className="text-sm text-gray-500">We reply within 24 hours</p>
             </div>
@@ -254,8 +254,8 @@ const ContactUsPage = () => {
             </div>
             <div>
               <h3 className="font-semibold text-gray-800">Visit Us</h3>
-              <p className="text-gray-600">Mumbai, Maharashtra</p>
-              <p className="text-sm text-gray-500">India</p>
+              <p className="text-gray-600">{process.env.REACT_APP_COMPANY_LOCATION || "Mumbai, Maharashtra"}</p>
+              <p className="text-sm text-gray-500">{process.env.REACT_APP_COMPANY_COUNTRY || "India"}</p>
             </div>
           </div>
         </div>

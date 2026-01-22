@@ -18,11 +18,10 @@ const CrossProducts = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState(null);
-  const [scrollPosition, setScrollPosition] = useState(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  const API_BASE_URL = "http://127.0.0.1:8000";
+  const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000";
 
   useEffect(() => {
     const checkUser = async () => {
@@ -252,7 +251,6 @@ const CrossProducts = ({
             {products.map((product) => {
               const isFavorite = isFavoritedGlobal(product.id);
               const imageSrc = getProductImageUrl(product);
-              const productCategory = product.category?.slug || "";
 
               return (
                 <div

@@ -88,8 +88,8 @@ const Footer = () => {
           {/* Left Side - Contact & Text */}
           <div className="text-center lg:text-left text-gray-400 text-sm leading-relaxed lg:w-1/3">
             <div className="space-x-3 mb-2">
-              <a href="tel:02522669393" className="hover:underline text-blue-400 cursor-pointer">
-                02522-669393
+              <a href={`tel:${(process.env.REACT_APP_PHONE_NUMBER || "02522-669393").replace(/-/g, '')}`} className="hover:underline text-blue-400 cursor-pointer">
+                {process.env.REACT_APP_PHONE_NUMBER || "02522-669393"}
               </a>
               <ScrollLink to="/" className="hover:underline text-blue-400 cursor-pointer">Home</ScrollLink>
               <ScrollLink to="/contact" className="hover:underline text-blue-400 cursor-pointer">Contact</ScrollLink>

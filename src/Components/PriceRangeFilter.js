@@ -5,8 +5,6 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
   const [maxValue, setMaxValue] = useState(value[1]);
   const [isDragging, setIsDragging] = useState(false);
   const debounceTimer = useRef(null);
-  const minValRef = useRef(null);
-  const maxValRef = useRef(null);
 
   // Update local state when prop value changes (but not during dragging)
   useEffect(() => {
@@ -25,6 +23,7 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
       setMinValue(clampedMin);
       setMaxValue(clampedMax);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [min, max, isDragging]);
 
   // Cleanup debounce timer on unmount
@@ -49,20 +48,6 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
     }, 500); // Wait 500ms after user stops dragging
   }, [onChange]);
 
-  const handleMinChange = (e) => {
-    const newValue = Math.min(Number(e.target.value), maxValue - 1);
-    setMinValue(newValue);
-    setIsDragging(true);
-    debouncedOnChange(newValue, maxValue);
-  };
-
-  const handleMaxChange = (e) => {
-    const newValue = Math.max(Number(e.target.value), minValue + 1);
-    setMaxValue(newValue);
-    setIsDragging(true);
-    debouncedOnChange(minValue, newValue);
-  };
-
   const handleMinInputChange = (e) => {
     const newValue = Math.max(min, Math.min(Number(e.target.value) || min, maxValue - 1));
     setMinValue(newValue);
@@ -82,9 +67,6 @@ const PriceRangeFilter = ({ min = 0, max = 10000, value = [0, 10000], onChange }
   const formatPrice = (price) => {
     return `₹${Math.round(price).toLocaleString()}`;
   };
-
-  // Calculate percentage for styling
-  const getPercent = (val) => ((val - min) / (max - min)) * 100;
 
   return (
     <div className="space-y-4">

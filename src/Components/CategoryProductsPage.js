@@ -34,7 +34,7 @@ const CategoryProductsPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
 
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   // Check if filters are active
   const isFiltered =

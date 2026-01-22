@@ -7,7 +7,7 @@ const Home = () => {
   const [heroBanners, setHeroBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentOfferIndex, setCurrentOfferIndex] = useState(0);
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   // Fetch offer bars and hero banners
   useEffect(() => {
@@ -34,6 +34,7 @@ const Home = () => {
     };
 
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-rotate offer bars

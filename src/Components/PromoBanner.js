@@ -5,7 +5,7 @@ function PromoBanner() {
   const navigate = useNavigate();
   const [promoBanners, setPromoBanners] = useState([]);
   const [loading, setLoading] = useState(true);
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   useEffect(() => {
     const fetchPromoBanners = async () => {
@@ -23,6 +23,7 @@ function PromoBanner() {
     };
 
     fetchPromoBanners();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleBannerClick = (banner) => {

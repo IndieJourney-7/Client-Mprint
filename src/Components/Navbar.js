@@ -31,7 +31,7 @@ const Navbar = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   // Fetch categories from API
   useEffect(() => {
@@ -58,6 +58,7 @@ const Navbar = () => {
       }
     };
     fetchCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -139,13 +140,13 @@ const Navbar = () => {
         {/* Right Icons */}
         <div className="hidden md:flex items-center gap-8 text-gray-800 text-sm">
           <a
-            href="tel:02522669393"
+            href={`tel:${(process.env.REACT_APP_PHONE_NUMBER || "02522-669393").replace(/-/g, '')}`}
             className="flex items-center gap-2 hover:text-blue-700"
           >
             <FaQuestionCircle className="text-lg" />
             <div className="flex flex-col leading-tight">
               <span className="font-medium">Help is here</span>
-              <span className="text-xs text-gray-500">02522-669393</span>
+              <span className="text-xs text-gray-500">{process.env.REACT_APP_PHONE_NUMBER || "02522-669393"}</span>
             </div>
           </a>
 
@@ -280,11 +281,11 @@ const Navbar = () => {
             </div>
 
             <a
-              href="tel:02522669393"
+              href={`tel:${(process.env.REACT_APP_PHONE_NUMBER || "02522-669393").replace(/-/g, '')}`}
               className="flex items-center gap-2 mb-3 hover:text-blue-700"
             >
               <FaQuestionCircle className="text-lg" />
-              <span>Help is here 02522-669393</span>
+              <span>Help is here {process.env.REACT_APP_PHONE_NUMBER || "02522-669393"}</span>
             </a>
 
             <Link
@@ -361,13 +362,13 @@ const Navbar = () => {
             <hr className="my-4" />
 
             <div className="flex flex-col gap-3 text-gray-800 font-medium text-sm">
-              {/* View All link */}
+              {/*All link */}
               <Link
                 to="/"
                 onClick={() => setMenuOpen(false)}
                 className="hover:text-red-600"
               >
-                View All
+                Home
               </Link>
 
               {/* Dynamic categories */}
@@ -400,12 +401,12 @@ const Navbar = () => {
         <div className="max-w-[1600px] mx-auto px-8">
           {/* Scrollable category container */}
           <div className="flex items-center overflow-x-auto py-3 text-gray-800 text-sm font-medium gap-1 scroll-smooth [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full">
-            {/* View All - Regular Link (sticky) */}
+            {/* All - Regular Link (sticky) */}
             <Link
               to="/"
               className="hover:text-red-600 transition px-3 py-2 rounded hover:bg-gray-50 whitespace-nowrap flex-shrink-0"
             >
-              View All
+              Home
             </Link>
 
             {/* Divider */}

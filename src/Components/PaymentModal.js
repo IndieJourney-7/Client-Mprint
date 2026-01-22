@@ -22,7 +22,7 @@ const PaymentModal = ({ currency = "INR", onClose, onPay }) => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/products");
+        const res = await fetch(`${process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api"}/products`);
         const data = await res.json();
         // adjust if your API wraps data, e.g. {data: [...]}
         const list = Array.isArray(data) ? data : data.data || [];

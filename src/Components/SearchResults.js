@@ -46,6 +46,7 @@ const SearchResults = () => {
     if (query.trim()) {
       searchProducts(query);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, selectedPriceRange, sortBy, sortOrder, currentPage]);
 
   const searchProducts = async (searchQuery) => {

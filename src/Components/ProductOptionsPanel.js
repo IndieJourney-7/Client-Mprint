@@ -26,9 +26,6 @@ const ProductOptionsPanel = ({
 
   // Attributes that are NOT editable in edit mode (fixed)
   const FIXED_ATTRIBUTES_IN_EDIT = ["orientation", "shape"];
-  
-  // Attributes that ARE editable in edit mode
-  const EDITABLE_ATTRIBUTES_IN_EDIT = ["quantity", "finish", "lamination", "enhancement"];
 
   // Filter out orientation-related keys from database attributes (we handle it separately)
   const filteredAttributeKeys = Object.keys(attributes).filter(key => {
@@ -74,6 +71,7 @@ const ProductOptionsPanel = ({
       });
       setCompletedSteps(completed);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isEditMode]);
 
   const formatLabel = (name) =>

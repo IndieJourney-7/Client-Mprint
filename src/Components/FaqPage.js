@@ -3,13 +3,13 @@ import { IoChevronDown, IoHelpCircleOutline, IoSearchOutline, IoThumbsUp, IoThum
 
 const FaqPage = () => {
   const [faqData, setFaqData] = useState([]);
-  const [categories, setCategories] = useState({});
+  const [, setCategories] = useState({});
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [feedbackGiven, setFeedbackGiven] = useState({});
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
   // Category colors matching the theme
   const categoryColors = {
@@ -53,6 +53,7 @@ const FaqPage = () => {
       }
     };
     fetchFaqs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleExpand = (id) => {

@@ -1,39 +1,95 @@
-import React, { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
-import whatsappImg from "../Assets/whatsappImg.png";
-import books from "../Assets/books.jpg";
-import A5brochures from "../Assets/A5brochures.jpg";
-import cardsImg from "../Assets/cards.png";
-import certificatesImg from "../Assets/certificates.jpg";
-import greetingCardsImg from "../Assets/greeting-cards.png";
-import personalisedCardsImg from "../Assets/personalisedcase.jpg";
-import photoFramesImg from "../Assets/photo-frame.png";
-import photoPrintsImg from "../Assets/photo-prints.png";
-import postersImg from "../Assets/posters.png";
-
-const products = [
-  { title: "Share Design On WhatsApp", img: whatsappImg },
-  { title: "Bookmarks",          price: "BUY 10 @ Rs.150", img: books },
-  { title: "Brochures",          price: "BUY 10 @ Rs.230", img: A5brochures },
-  { title: "Cards",              price: "BUY 10 @ Rs.199", img: cardsImg },
-  { title: "Certificates",       price: "BUY 1 @ Rs.299",  img: certificatesImg },
-  { title: "Greeting Cards",     price: "BUY 5 @ Rs.249",  img: greetingCardsImg },
-  { title: "Personalised Cards", price: "BUY 1 @ Rs.299",  img: personalisedCardsImg },
-  { title: "Photo Frames",       price: "BUY 1 @ Rs.499",  img: photoFramesImg },
-  { title: "Photo Prints",       price: "BUY 20 @ Rs.149", img: photoPrintsImg },
-  { title: "Posters",            price: "BUY 1 @ Rs.199",  img: postersImg },
-];
 
 const Trending = () => {
   const scrollRef = useRef(null);
+  const navigate = useNavigate();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const API_BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000/api";
 
-  const scrollLeft = () => {
-    scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" });
+  const scrollLeft = () => scrollRef.current?.scrollBy({ left: -300, behavior: "smooth" });
+  const scrollRight = () => scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" });
+
+  // Fetch trending products from API
+  useEffect(() => {
+    const fetchTrendingProducts = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/products/trending?per_page=12`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Handle both paginated and non-paginated responses
+          const productList = data.data.data || data.data;
+          setProducts(Array.isArray(productList) ? productList : []);
+        } else {
+          setProducts([]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch trending products:", err);
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrendingProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const getProductImageUrl = (product) => {
+    if (product.featured_image) {
+      return `${API_BASE_URL.replace("/api", "")}/storage/${product.featured_image}`;
+    }
+    if (product.images && product.images.length > 0) {
+      return product.images[0].image_url ||
+        `${API_BASE_URL.replace("/api", "")}/storage/${product.images[0].image_path}`;
+    }
+    if (product.image_url) {
+      return product.image_url;
+    }
+    return "https://via.placeholder.com/200x170?text=Trending";
   };
 
-  const scrollRight = () => {
-    scrollRef.current?.scrollBy({ left: 300, behavior: "smooth" });
+  const getCategorySlug = (product) => {
+    if (product.category?.slug) {
+      return product.category.slug;
+    }
+    return "products";
   };
+
+  const handleProductClick = (product) => {
+    const categorySlug = getCategorySlug(product);
+    navigate(`/category/${categorySlug}/${product.slug}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full py-8 md:py-14 bg-white">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-10">
+          <h2 className="text-2xl md:text-4xl font-bold mb-6 md:mb-12 text-left">
+            Trending
+          </h2>
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
+    return null;
+  }
 
   return (
     <div className="w-full py-8 md:py-14 bg-white">
@@ -43,24 +99,37 @@ const Trending = () => {
         </h2>
         {/* Mobile: 2-column grid */}
         <div className="grid grid-cols-2 gap-x-6 gap-y-8 md:hidden">
-          {products.map((item, i) => (
-            <div key={i} className="flex flex-col items-center relative">
-              {item.price && (
+          {products.map((product) => {
+            const imageUrl = getProductImageUrl(product);
+            return (
+              <div
+                key={product.id}
+                className="flex flex-col items-center relative cursor-pointer"
+                onClick={() => handleProductClick(product)}
+              >
                 <div className="absolute top-2 left-2 bg-[#27B1E2] text-white text-[10px] font-medium py-[2px] px-2 rounded-full z-10 shadow">
-                  {item.price}
+                  Rs.{parseFloat(product.price || 0).toFixed(0)}
                 </div>
-              )}
-              <img
-                src={item.img}
-                alt={item.title}
-                className="w-[140px] h-[120px] object-cover mb-2 rounded-md"
-                loading="lazy"
-              />
-              <p className="text-center font-semibold text-[15px] leading-tight mt-0">
-                {item.title}
-              </p>
-            </div>
-          ))}
+                <img
+                  src={imageUrl}
+                  alt={product.name}
+                  className="w-[140px] h-[120px] object-cover mb-2 rounded-md"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.target.src = "https://via.placeholder.com/140x120?text=Product";
+                  }}
+                />
+                <p className="text-center font-semibold text-[15px] leading-tight mt-0">
+                  {product.name}
+                </p>
+                {product.tag_line && (
+                  <p className="text-center text-[11px] text-gray-600 mt-1 px-1 line-clamp-2">
+                    {product.tag_line}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
         {/* Desktop: horizontal scroll with buttons */}
         <div className="hidden md:block relative mt-10">
@@ -75,24 +144,37 @@ const Trending = () => {
             ref={scrollRef}
             className="flex gap-10 overflow-x-auto scroll-smooth px-14 no-scrollbar"
           >
-            {products.map((item, i) => (
-              <div key={i} className="flex flex-col items-center relative min-w-[200px]">
-                {item.price && (
+            {products.map((product) => {
+              const imageUrl = getProductImageUrl(product);
+              return (
+                <div
+                  key={product.id}
+                  className="flex flex-col items-center relative min-w-[200px] cursor-pointer"
+                  onClick={() => handleProductClick(product)}
+                >
                   <div className="absolute top-2 left-2 bg-[#27B1E2] text-white text-[10px] font-medium py-[2px] px-2 rounded-full z-10 shadow">
-                    {item.price}
+                    Rs.{parseFloat(product.price || 0).toFixed(0)}
                   </div>
-                )}
-                <img
-                  src={item.img}
-                  alt={item.title}
-                  className="w-[200px] h-[170px] object-cover mb-3 rounded-md"
-                  loading="lazy"
-                />
-                <p className="text-center font-semibold text-[16px] leading-tight mt-0">
-                  {item.title}
-                </p>
-              </div>
-            ))}
+                  <img
+                    src={imageUrl}
+                    alt={product.name}
+                    className="w-[200px] h-[170px] object-cover mb-3 rounded-md"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.target.src = "https://via.placeholder.com/200x170?text=Product";
+                    }}
+                  />
+                  <p className="text-center font-semibold text-[16px] leading-tight mt-0">
+                    {product.name}
+                  </p>
+                  {product.tag_line && (
+                    <p className="text-center text-xs text-gray-600 mt-2 px-2 line-clamp-2">
+                      {product.tag_line}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <button
             onClick={scrollRight}

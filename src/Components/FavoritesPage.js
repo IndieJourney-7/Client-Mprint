@@ -17,7 +17,7 @@ import { useFavorites } from "../context/FavoritesContext";
 const FavoritesPage = () => {
   const navigate = useNavigate();
   const { favorites, removeFromFavorites, clearAllFavorites, fetchFavorites } = useFavorites();
-  const [user, setUser] = useState(null);
+  const [, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");

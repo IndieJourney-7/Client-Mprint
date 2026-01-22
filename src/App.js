@@ -27,6 +27,7 @@ import FaqSection from "./Components/FaqSection";
 // ==========================================
 import CardDetailPage from "./Components/CardDetailPage";
 import AdminPanel from "./Components/Admin/AdminPanel";
+import AdminLogin from "./Components/Admin/AdminLogin";
 import Cart from "./Components/Cart";
 import SearchResults from "./Components/SearchResults";
 import FavoritesPage from "./Components/FavoritesPage";
@@ -68,10 +69,14 @@ function App() {
       <ScrollToTop />
       
       {/* Global Floating Contact Buttons - WhatsApp & Call */}
-      <FloatingContactWidget phoneNumber="02522-669393" whatsappNumber="919876543210" />
+      <FloatingContactWidget
+        phoneNumber={process.env.REACT_APP_PHONE_NUMBER || "02522-669393"}
+        whatsappNumber={process.env.REACT_APP_WHATSAPP_NUMBER || "919876543210"}
+      />
 
       <Routes>
-        {/* ==================== ADMIN PANEL (No Layout) ==================== */}
+        {/* ==================== ADMIN ROUTES (No Layout) ==================== */}
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminPanel />} />
 
         {/* ==================== CHECKOUT FLOW (Distraction-Free Layout) ==================== */}

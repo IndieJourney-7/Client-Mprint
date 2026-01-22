@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, useLocation, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { IoHeart, IoHeartOutline, IoSearch, IoCloudUploadOutline, IoChevronDown, IoChevronUp } from 'react-icons/io5';
 
@@ -17,7 +17,6 @@ import { IoHeart, IoHeartOutline, IoSearch, IoCloudUploadOutline, IoChevronDown,
 const TemplateBrowser = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
   const { slug, productSlug } = useParams();
 
   // Determine actual product slug and category slug
@@ -25,7 +24,7 @@ const TemplateBrowser = () => {
   const categorySlug = productSlug ? slug : null;
 
   // Get product info from navigation state
-  const { product, selectedAttributes, designId, sessionId } = location.state || {};
+  const { product, selectedAttributes } = location.state || {};
 
   // Template state
   const [templates, setTemplates] = useState([]);
@@ -53,6 +52,7 @@ const TemplateBrowser = () => {
   // Fetch templates
   useEffect(() => {
     fetchTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOrientation, selectedCorners, searchQuery, pagination.current_page]);
 
   const fetchTemplates = async () => {

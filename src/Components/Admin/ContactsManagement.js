@@ -23,7 +23,7 @@ import {
   IoChevronForward,
 } from 'react-icons/io5';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
 const ContactsManagement = () => {
   const [contacts, setContacts] = useState([]);
@@ -567,7 +567,7 @@ const ContactsManagement = () => {
                       Attachment
                     </h4>
                     <a
-                      href={`http://127.0.0.1:8000/storage/${selectedContact.attachment}`}
+                      href={`${process.env.REACT_APP_API_BASE_URL || 'http://127.0.0.1:8000'}/storage/${selectedContact.attachment}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-amber-600 hover:text-amber-700 text-sm"

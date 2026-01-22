@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { applyAttributeTemplate, hasTemplate } from './productAttributes';
+import api from '../../api/api';
 import BannerManagement from './BannerManagement';
 import OfferBarManagement from './OfferBarManagement';
 import OrdersManagement from './OrdersManagement';
@@ -45,6 +47,13 @@ import {
 } from 'react-icons/io5';
 
 const AdminPanel = () => {
+  const navigate = useNavigate();
+
+  // Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [adminUser, setAdminUser] = useState(null);
+
   // State Management
   const [currentSection, setCurrentSection] = useState('products');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -58,6 +67,73 @@ const AdminPanel = () => {
   const [validationErrors, setValidationErrors] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Check admin authentication on mount
+  useEffect(() => {
+    const checkAdminAuth = async () => {
+      const token = localStorage.getItem('admin_token');
+
+      if (!token) {
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
+      // Check if token is expired (client-side check)
+      const tokenExpires = localStorage.getItem('admin_token_expires');
+      if (tokenExpires && Date.now() > parseInt(tokenExpires)) {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        localStorage.removeItem('admin_token_expires');
+        navigate('/admin/login', { replace: true });
+        return;
+      }
+
+      try {
+        const response = await api.get('/api/admin/verify', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.success) {
+          setIsAuthenticated(true);
+          const storedUser = localStorage.getItem('admin_user');
+          if (storedUser) {
+            setAdminUser(JSON.parse(storedUser));
+          }
+        } else {
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('admin_user');
+          localStorage.removeItem('admin_token_expires');
+          navigate('/admin/login', { replace: true });
+        }
+      } catch (err) {
+        console.error('Admin auth check failed:', err);
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_user');
+        localStorage.removeItem('admin_token_expires');
+        navigate('/admin/login', { replace: true });
+      } finally {
+        setAuthChecking(false);
+      }
+    };
+
+    checkAdminAuth();
+  }, [navigate]);
+
+  // Handle admin logout
+  const handleLogout = async () => {
+    const token = localStorage.getItem('admin_token');
+    try {
+      await api.post('/api/admin/logout', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch {
+      // Ignore logout API errors
+    }
+    localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_user');
+    localStorage.removeItem('admin_token_expires');
+    navigate('/admin/login', { replace: true });
+  };
+
   // Image upload states
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
@@ -70,7 +146,7 @@ const AdminPanel = () => {
   const [newOption, setNewOption] = useState({ id: '', name: '', price: 0, value: '', quantity: 0, unitPrice: 0 });
 
   // API Base URL
-  const API_BASE_URL = 'http://127.0.0.1:8000/api';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
   // Product Form State
   const [productForm, setProductForm] = useState({
@@ -90,6 +166,9 @@ const AdminPanel = () => {
     print_width_inches: '',
     attributes: {},
     is_featured: false,
+    is_new: false,
+    is_trending: false,
+    is_branded: false,
     is_active: true,
   });
 
@@ -601,6 +680,9 @@ const AdminPanel = () => {
       }
 
       formData.append('is_featured', productForm.is_featured ? '1' : '0');
+      formData.append('is_new', productForm.is_new ? '1' : '0');
+      formData.append('is_trending', productForm.is_trending ? '1' : '0');
+      formData.append('is_branded', productForm.is_branded ? '1' : '0');
       formData.append('is_active', productForm.is_active ? '1' : '0');
 
       formData.append('attributes', JSON.stringify(productForm.attributes));
@@ -758,6 +840,9 @@ const AdminPanel = () => {
       print_width_inches: '',
       attributes: {},
       is_featured: false,
+      is_new: false,
+      is_trending: false,
+      is_branded: false,
       is_active: true,
     });
 
@@ -807,6 +892,9 @@ const AdminPanel = () => {
       print_width_inches: product.print_width_inches || '',
       attributes: product.attributes || {},
       is_featured: product.is_featured || false,
+      is_new: product.is_new || false,
+      is_trending: product.is_trending || false,
+      is_branded: product.is_branded || false,
       is_active: product.is_active !== undefined ? product.is_active : true,
     });
 
@@ -926,13 +1014,41 @@ const AdminPanel = () => {
     category.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Show loading while checking authentication
+  if (authChecking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-900">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, return null (redirect will happen via useEffect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`${
-          sidebarOpen ? 'w-72' : 'w-20'
-        } bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 flex flex-col shadow-2xl`}
+        className={`
+          fixed lg:relative inset-y-0 left-0 z-50
+          ${sidebarOpen ? 'w-72 translate-x-0' : 'w-20 -translate-x-full lg:translate-x-0'}
+          bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white
+          transition-all duration-300 flex flex-col shadow-2xl
+        `}
       >
         {/* Sidebar Header */}
         <div className="p-6 border-b border-gray-700/50">
@@ -944,7 +1060,7 @@ const AdminPanel = () => {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold">Admin Panel</h1>
-                  <p className="text-xs text-gray-400">Manage your store</p>
+                  <p className="text-xs text-gray-400">{adminUser?.email || 'Manage your store'}</p>
                 </div>
               </div>
             ) : (
@@ -1015,6 +1131,13 @@ const AdminPanel = () => {
                 <span className="text-sm font-medium">View Website</span>
               </a>
               <button
+                onClick={handleLogout}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all"
+              >
+                <IoLogOutOutline size={20} />
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+              <button
                 onClick={() => setSidebarOpen(false)}
                 className="w-full flex items-center justify-center px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition-all text-sm"
               >
@@ -1036,35 +1159,51 @@ const AdminPanel = () => {
               >
                 <IoHome size={20} />
               </a>
+              <button
+                onClick={handleLogout}
+                className="w-full p-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-all flex items-center justify-center"
+                title="Logout"
+              >
+                <IoLogOutOutline size={20} />
+              </button>
             </div>
           )}
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col min-h-0 w-full lg:w-auto">
         {/* Top Header Bar */}
-        <header className="bg-white border-b border-gray-200 px-8 py-5 flex items-center justify-between shadow-sm">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">
-              {menuItems.find(item => item.id === currentSection)?.label}
-            </h2>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {menuItems.find(item => item.id === currentSection)?.description}
-            </p>
+        <header className="bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-4 lg:py-5 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all"
+            >
+              <IoMenu size={22} className="text-gray-700" />
+            </button>
+            <div>
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">
+                {menuItems.find(item => item.id === currentSection)?.label}
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">
+                {menuItems.find(item => item.id === currentSection)?.description}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <button
               onClick={() => {
                 fetchCategories();
                 fetchProducts();
               }}
               disabled={loading}
-              className="p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50"
+              className="p-2 sm:p-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 transition-all disabled:opacity-50"
               title="Refresh Data"
             >
               <IoRefresh
-                size={20}
+                size={18}
                 className={`text-gray-700 ${loading ? 'animate-spin' : ''}`}
               />
             </button>
@@ -1072,7 +1211,7 @@ const AdminPanel = () => {
         </header>
 
         {/* Content Area with Scroll */}
-        <div className="flex-1 overflow-auto min-h-0 bg-gray-50 p-8">
+        <div className="flex-1 overflow-auto min-h-0 bg-gray-50 p-4 sm:p-6 lg:p-8">
           {/* Success/Error Messages */}
           {success && (
             <div className="mb-6 animate-in slide-in-from-top duration-300">
@@ -1122,29 +1261,19 @@ const AdminPanel = () => {
 
           {/* Products Section */}
           {currentSection === 'products' && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Header Card */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 p-6">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
-                        {filteredProducts.length} {searchQuery ? 'found' : 'total'}
-                      </span>
-                    </div>
-                    <p className="text-gray-600">Manage your product catalog and inventory</p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    <div className="relative flex-1 sm:flex-initial">
-                      <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="text"
-                        placeholder="Search by name, SKU, or category..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full sm:w-72 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
-                      />
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-sm border border-gray-200/50 p-4 sm:p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Product Management</h2>
+                        <span className="inline-flex items-center px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold bg-blue-100 text-blue-800">
+                          {filteredProducts.length} {searchQuery ? 'found' : 'total'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 hidden sm:block">Manage your product catalog and inventory</p>
                     </div>
                     <button
                       onClick={() => {
@@ -1152,17 +1281,27 @@ const AdminPanel = () => {
                         setEditingItem(null);
                         setShowForm(true);
                       }}
-                      className="group relative px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-2"
+                      className="group relative px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
-                      <IoAdd size={20} className="group-hover:rotate-90 transition-transform" />
+                      <IoAdd size={18} className="group-hover:rotate-90 transition-transform sm:w-5 sm:h-5" />
                       Add Product
                     </button>
+                  </div>
+                  <div className="relative">
+                    <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Search by name, SKU, or category..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-sm"
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Products Grid/Table - Full Height with Parent Scroll */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 overflow-hidden">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-sm border border-gray-200/50 overflow-hidden">
                 {loading && !showForm ? (
                   <div className="p-12 text-center">
                     <div className="inline-flex flex-col items-center">
@@ -1186,24 +1325,24 @@ const AdminPanel = () => {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse min-w-[640px]">
                       <thead className="bg-gray-50/80 backdrop-blur-sm">
                         <tr className="border-b border-gray-200/50">
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Stock</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Attributes</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Product</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Category</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Price</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Stock</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Attributes</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Status</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200/50">
                         {filteredProducts.map((product) => (
                           <tr key={product.id} className="group hover:bg-blue-50/30 transition-colors">
-                            <td className="px-6 py-4">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center">
-                                <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
+                                <div className="relative w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
                                   <img
                                     className="w-full h-full object-cover"
                                     src={product.featured_image_url || product.featured_image || 'https://via.placeholder.com/56?text=No+Image'}
@@ -1213,33 +1352,33 @@ const AdminPanel = () => {
                                     }}
                                   />
                                 </div>
-                                <div className="ml-4 min-w-0 flex-1">
-                                  <div className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
-                                    {product.name}
+                                <div className="ml-2 sm:ml-4 min-w-0 flex-1">
+                                  <div className="text-xs sm:text-sm font-semibold text-gray-900 flex flex-wrap items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">
+                                    <span className="truncate max-w-[100px] sm:max-w-none">{product.name}</span>
                                     {product.is_featured && (
-                                      <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800">
-                                        <IoStar className="mr-1" size={12} />
+                                      <div className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800">
+                                        <IoStar className="mr-1" size={10} />
                                         Featured
                                       </div>
                                     )}
                                   </div>
-                                  <div className="text-xs text-gray-500 font-mono">SKU: {product.sku}</div>
+                                  <div className="text-[10px] sm:text-xs text-gray-500 font-mono">SKU: {product.sku}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex px-3 py-1 text-xs font-medium rounded-lg bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
+                              <span className="inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-medium rounded-lg bg-gradient-to-r from-purple-100 to-pink-100 text-purple-800">
                                 {getCategoryName(product.category_id)}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-bold text-gray-900">₹{parseFloat(product.price || 0).toFixed(2)}</div>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                              <div className="text-xs sm:text-sm font-bold text-gray-900">₹{parseFloat(product.price || 0).toFixed(2)}</div>
                               {product.sale_price && (
-                                <div className="text-xs text-red-600 font-semibold">Sale: ₹{parseFloat(product.sale_price).toFixed(2)}</div>
+                                <div className="text-[10px] sm:text-xs text-red-600 font-semibold">Sale: ₹{parseFloat(product.sale_price).toFixed(2)}</div>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-lg ${
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden md:table-cell">
+                              <span className={`inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold rounded-lg ${
                                 parseInt(product.stock_quantity) > 0
                                   ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800'
                                   : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-800'
@@ -1247,17 +1386,17 @@ const AdminPanel = () => {
                                 {product.stock_quantity || 0} units
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden lg:table-cell">
                               {product.attributes && Object.keys(product.attributes).length > 0 ? (
-                                <span className="inline-flex px-3 py-1 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800">
+                                <span className="inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold rounded-lg bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800">
                                   {Object.keys(product.attributes).length} attrs
                                 </span>
                               ) : (
                                 <span className="text-xs text-gray-400">None</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-lg ${
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
+                              <span className={`inline-flex px-2 sm:px-3 py-0.5 sm:py-1 text-xs font-semibold rounded-lg ${
                                 product.is_active
                                   ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800'
                                   : 'bg-gray-100 text-gray-600'
@@ -1265,21 +1404,21 @@ const AdminPanel = () => {
                                 {product.is_active ? 'Active' : 'Inactive'}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <div className="flex space-x-2">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex space-x-1 sm:space-x-2">
                                 <button
                                   onClick={() => handleEditProduct(product)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
                                 >
                                   <IoPencil size={14} />
-                                  Edit
+                                  <span className="hidden sm:inline">Edit</span>
                                 </button>
                                 <button
                                   onClick={() => handleDeleteProduct(product.id)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
                                 >
                                   <IoTrash size={14} />
-                                  Delete
+                                  <span className="hidden sm:inline">Delete</span>
                                 </button>
                               </div>
                             </td>
@@ -1295,23 +1434,13 @@ const AdminPanel = () => {
 
           {/* Categories Section */}
           {currentSection === 'categories' && (
-            <div className="space-y-6">
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 p-6">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Category Management</h2>
-                    <p className="text-gray-600">Organize your products into categories</p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                    <div className="relative flex-1 sm:flex-initial">
-                      <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                      <input
-                        type="text"
-                        placeholder="Search categories..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full sm:w-64 pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none"
-                      />
+            <div className="space-y-4 sm:space-y-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-sm border border-gray-200/50 p-4 sm:p-6">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 sm:mb-2">Category Management</h2>
+                      <p className="text-sm text-gray-600 hidden sm:block">Organize your products into categories</p>
                     </div>
                     <button
                       onClick={() => {
@@ -1319,16 +1448,26 @@ const AdminPanel = () => {
                         setEditingItem(null);
                         setShowForm(true);
                       }}
-                      className="group relative px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium hover:shadow-lg hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-2"
+                      className="group relative px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium hover:shadow-lg hover:shadow-green-500/30 transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
                     >
-                      <IoAdd size={20} className="group-hover:rotate-90 transition-transform" />
+                      <IoAdd size={18} className="group-hover:rotate-90 transition-transform sm:w-5 sm:h-5" />
                       Add Category
                     </button>
+                  </div>
+                  <div className="relative">
+                    <IoSearchOutline className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Search categories..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-300 focus:ring-4 focus:ring-blue-100 transition-all outline-none text-sm"
+                      />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-sm border border-gray-200/50 overflow-hidden">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl sm:rounded-3xl shadow-sm border border-gray-200/50 overflow-hidden">
                 {loading && !showForm ? (
                   <div className="p-12 text-center">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
@@ -1348,24 +1487,24 @@ const AdminPanel = () => {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full min-w-[500px]">
                       <thead>
                         <tr className="border-b border-gray-200/50 bg-gray-50/50">
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Path</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Products</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Order</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Category</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Path</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden md:table-cell">Products</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden lg:table-cell">Order</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider hidden sm:table-cell">Status</th>
+                          <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200/50">
                         {filteredCategories.map((category) => (
                           <tr key={category.id} className="group hover:bg-blue-50/30 transition-colors">
-                            <td className="px-6 py-4">
+                            <td className="px-3 sm:px-6 py-3 sm:py-4">
                               <div className="flex items-center">
-                                <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center ring-1 ring-blue-200">
-                                  <IoGridOutline className="text-blue-600" size={20} />
+                                <div className="flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-100 to-purple-100 rounded-lg sm:rounded-xl flex items-center justify-center ring-1 ring-blue-200">
+                                  <IoGridOutline className="text-blue-600" size={18} />
                                 </div>
                                 <div className="ml-4">
                                   <div className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-1">
@@ -1477,31 +1616,31 @@ const AdminPanel = () => {
 
       {/* Form Modal - Enhanced Design */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-6xl max-h-[95vh] sm:max-h-[90vh] flex flex-col animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-3xl">
+            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-gray-200 flex-shrink-0 bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-3xl">
               <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-900">
                     {editingItem
                       ? currentSection === 'products' ? 'Edit Product' : 'Edit Category'
                       : currentSection === 'products' ? 'Add New Product' : 'Add New Category'
                     }
                   </h2>
-                  <p className="text-sm text-gray-500 mt-1">Fill in the details below</p>
+                  <p className="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">Fill in the details below</p>
                 </div>
                 <button
                   onClick={resetForm}
                   className="p-2 rounded-xl hover:bg-white/80 transition-colors"
                 >
-                  <IoClose size={24} className="text-gray-500" />
+                  <IoClose size={22} className="text-gray-500" />
                 </button>
               </div>
             </div>
 
             {/* Modal Content */}
-            <div className="overflow-y-auto flex-1 px-8 py-6">
+            <div className="overflow-y-auto flex-1 px-4 sm:px-8 py-4 sm:py-6">
               {error && showForm && (
                 <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 text-red-700 px-4 py-3 rounded-2xl mb-6">
                   <p className="font-semibold">Error</p>
@@ -1511,10 +1650,10 @@ const AdminPanel = () => {
 
               {/* Product Form */}
               {currentSection === 'products' && (
-                <form onSubmit={submitProductForm} className="space-y-8" encType="multipart/form-data">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <form onSubmit={submitProductForm} className="space-y-6 sm:space-y-8" encType="multipart/form-data">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
                     {/* LEFT COLUMN */}
-                    <div className="space-y-6">
+                    <div className="space-y-4 sm:space-y-6">
                       {/* Category Selection */}
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
@@ -1872,7 +2011,7 @@ const AdminPanel = () => {
                       </div>
 
                       {/* Checkboxes */}
-                      <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-xl">
+                      <div className="flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-xl">
                         <label className="flex items-center cursor-pointer group">
                           <input
                             type="checkbox"
@@ -1881,7 +2020,37 @@ const AdminPanel = () => {
                             onChange={handleProductChange}
                             className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
                           />
-                          <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Featured Product</span>
+                          <span className="ml-2 text-sm font-medium text-gray-700 group-hover:text-gray-900">Featured</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            name="is_new"
+                            checked={productForm.is_new}
+                            onChange={handleProductChange}
+                            className="h-5 w-5 text-green-600 focus:ring-4 focus:ring-green-100 border-gray-300 rounded cursor-pointer"
+                          />
+                          <span className="ml-2 text-sm font-medium text-gray-700 group-hover:text-gray-900">New Arrival</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            name="is_trending"
+                            checked={productForm.is_trending}
+                            onChange={handleProductChange}
+                            className="h-5 w-5 text-orange-600 focus:ring-4 focus:ring-orange-100 border-gray-300 rounded cursor-pointer"
+                          />
+                          <span className="ml-2 text-sm font-medium text-gray-700 group-hover:text-gray-900">Trending</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            name="is_branded"
+                            checked={productForm.is_branded}
+                            onChange={handleProductChange}
+                            className="h-5 w-5 text-purple-600 focus:ring-4 focus:ring-purple-100 border-gray-300 rounded cursor-pointer"
+                          />
+                          <span className="ml-2 text-sm font-medium text-gray-700 group-hover:text-gray-900">Branded</span>
                         </label>
                         <label className="flex items-center cursor-pointer group">
                           <input
@@ -1891,7 +2060,7 @@ const AdminPanel = () => {
                             onChange={handleProductChange}
                             className="h-5 w-5 text-blue-600 focus:ring-4 focus:ring-blue-100 border-gray-300 rounded cursor-pointer"
                           />
-                          <span className="ml-3 text-sm font-medium text-gray-700 group-hover:text-gray-900">Active</span>
+                          <span className="ml-2 text-sm font-medium text-gray-700 group-hover:text-gray-900">Active</span>
                         </label>
                       </div>
                     </div>
