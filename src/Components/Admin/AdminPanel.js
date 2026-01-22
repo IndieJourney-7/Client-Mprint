@@ -1081,7 +1081,10 @@ const AdminPanel = () => {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentSection(item.id)}
+                  onClick={() => {
+                    setCurrentSection(item.id);
+                    if (window.innerWidth < 1024) setSidebarOpen(false);
+                  }}
                   className={`w-full group relative ${
                     sidebarOpen ? 'px-4 py-3.5' : 'px-3 py-3.5'
                   } rounded-xl transition-all duration-200 ${
